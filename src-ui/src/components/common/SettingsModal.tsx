@@ -295,9 +295,9 @@ export function SettingsModal() {
               <button
                 type="button"
                 className="settings-rail-version-link"
-                onClick={() => commands.openUrl('https://coffeecli.com').catch(() => {})}
+                onClick={() => commands.openUrl('https://github.com/Hopesy/sinos').catch(() => {})}
               >
-                CoffeeCLI.com
+                GitHub
               </button>
             </div>
           )}
@@ -436,7 +436,7 @@ export function SettingsModal() {
                   className="settings-font-preview"
                   style={{ fontFamily: state.termFont ? `"${state.termFont}", monospace` : 'monospace' }}
                 >
-                  {'Coffee CLI · AaBb 0123 {}=>'}
+                  {'Sinos CLI · AaBb 0123 {}=>'}
                 </div>
 
                 {/* Default shell picker. Shell NAMES are not translated
@@ -677,7 +677,7 @@ export function SettingsModal() {
                   <button
                     type="button"
                     className="settings-feedback-card"
-                    onClick={() => commands.openUrl('https://github.com/edison7009/Coffee-CLI/issues').catch(() => {})}
+                    onClick={() => commands.openUrl('https://github.com/Hopesy/sinos/issues').catch(() => {})}
                   >
                     <span className="settings-feedback-card-icon">
                       <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -691,7 +691,7 @@ export function SettingsModal() {
                     <button
                       type="button"
                       className="settings-feedback-card"
-                      onClick={() => commands.openUrl('https://gitcode.com/edison7009/Coffee-CLI/issues').catch(() => {})}
+                    onClick={() => commands.openUrl('https://github.com/Hopesy/sinos/issues').catch(() => {})}
                     >
                       <span className="settings-feedback-card-label">国内访问：GitCode</span>
                       <ExternalLinkArrow />

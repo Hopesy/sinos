@@ -95,5 +95,5 @@ AI 生成的代码默认有以下问题：
 ## 原文与资源
 
 - 本模块基于 Anthropic《The Founder's Playbook》MVP 章节整理
-- Coffee CLI 用户：在 Coffee CLI 桌面应用里开 Claude Code 标签页运行，并在项目根目录建 `CLAUDE.md`
+- Sinos CLI 用户：在 Sinos CLI 桌面应用里开 Claude Code 标签页运行，并在项目根目录建 `CLAUDE.md`
 - 原版 PDF：[官方下载链接](https://cdn.prod.website-files.com/6889473510b50328dbb70ae6/69fe2a55b93bb0732b1fe33c_The-Founders-Playbook-05062026_v3%20%281%29.pdf)

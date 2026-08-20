@@ -1,7 +1,7 @@
 import type { I18nKey } from './en';
 
 export const zhCN = {
-  'app.title': 'Coffee CLI',
+  'app.title': 'Sinos CLI',
   'explorer.tab.workspace': '工作区',
   'explorer.tab.history': '会话记录',
   'explorer.workspace.select-dir': '点击选择工作目录',
@@ -144,7 +144,7 @@ export const zhCN = {
   'task.prompt.category_placeholder': '分类名（选已有或输入新的）',
   'task.prompt.body_placeholder': '写提示词，整段发给 AI…',
   'task.note_placeholder': '写点什么，整段发给 AI…',
-  'task.welcome_note': `欢迎来到 Coffee CLI ☕
+  'task.welcome_note': `欢迎来到 Sinos CLI
 
 这张就是「便签」——随手写，写完点右上角 ▶ 整段发给 AI，不用再挤小输入框。
 
@@ -199,5 +199,26 @@ export const zhCN = {
   'heatmap.tooltip_some': '{date} · {count} 条消息',
   'heatmap.tooltip_one': '{date} · 1 条消息',
   'heatmap.tooltip_none': '{date} · 没有活动',
+
+  // 应用内代码编辑器
+  'menu.open_editor': '在编辑器中打开',
+  'editor.loading': '正在加载编辑器…',
+  'editor.reading': '正在读取文件…',
+  'editor.retry': '重试',
+  'editor.save': '保存',
+  'editor.saving': '保存中…',
+  'editor.reload': '重新加载',
+  'editor.reload_confirm': '重新加载会丢弃当前未保存的修改，确定继续吗？',
+  'editor.saved': '已保存',
+  'editor.unsaved': '有未保存修改',
+  'editor.external_changed': '磁盘文件已变化，未保存内容已保留',
+  'editor.external_save_blocked': '文件已被外部程序修改，请重新加载后再保存',
+  'editor.external_conflict': '文件已被外部程序修改，已停止保存以避免覆盖改动',
+  'editor.binary': '二进制文件不能在编辑器中打开',
+  'editor.encoding': '当前文件不是 UTF-8 编码，无法打开',
+  'editor.too_large': '文件超过 5 MB 编辑上限',
+  'editor.outside_workspace': '文件不在当前工作区内',
+  'editor.read_failed': '文件读取失败',
+  'editor.close_unsaved': '文件尚未保存，确定关闭吗？',
 
 } as const satisfies Record<I18nKey, string>;

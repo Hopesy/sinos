@@ -16,9 +16,12 @@
 }
 
 .brand-icon {
-    /* SVG size is 18x18, so we let it render natively but ensure it's vertically centered */
+    width: 18px;
+    height: 18px;
     display: block;
-    color: var(--accent); /* Uses theme variable to support light/dark mode gracefully */
+    flex: 0 0 auto;
+    object-fit: contain;
+    border-radius: 4px;
 }
 
 .brand span {

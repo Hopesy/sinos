@@ -402,7 +402,7 @@ export function App() {
 
   // History list auto-refresh — install the window-foreground listener +
   // 60s background poll that keep the session-history cache live so users
-  // no longer have to restart Coffee CLI to see newly-created sessions
+  // no longer have to restart Sinos CLI to see newly-created sessions
   // (issue: "会话记录列表始终是第一次打开软件时的,要重启才能看到新的").
   // refreshHistory no-ops until the user first opens the History tab
   // (prefetchHistory flips status to 'ready'), so users who never open it

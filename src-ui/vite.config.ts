@@ -47,6 +47,15 @@ function patchXtermWebglBgFlags(): Plugin {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), patchXtermWebglBgFlags()],
+  // Monaco 0.56 exposes the narrow standalone API through `editor.api`, but
+  // its package export also imports the editor CSS. Point Vite at the exact
+  // ESM files so the lazy editor chunk stays isolated from the main app.
+  resolve: {
+    alias: {
+      'monaco-editor/editor/editor.api': resolve(__dirname, 'node_modules/monaco-editor/esm/vs/editor/editor.api.js'),
+      'monaco-editor/editor/editor.worker': resolve(__dirname, 'node_modules/monaco-editor/esm/vs/editor/editor.worker.js'),
+    },
+  },
   // The patch plugin above runs as a Vite transform — but Vite's dev
   // server pre-bundles node_modules with esbuild *before* plugin
   // transforms run, so the addon would ship un-patched in `tauri dev`.

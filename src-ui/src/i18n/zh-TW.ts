@@ -1,7 +1,8 @@
-import type { I18nKey } from './en';
+import { editorFallback, type I18nKey } from './en';
 
 export const zhTW = {
-  'app.title': 'Coffee CLI',
+  ...editorFallback,
+  'app.title': 'Sinos CLI',
   'explorer.tab.workspace': '工作區',
   'explorer.tab.history': '會話記錄',
   'explorer.workspace.select-dir': '點擊選擇工作目錄',
@@ -144,7 +145,7 @@ export const zhTW = {
   'task.prompt.category_placeholder': '分類名（選已有或輸入新的）',
   'task.prompt.body_placeholder': '寫提示詞，整段發給 AI…',
   'task.note_placeholder': '寫點什麼，整段發給 AI…',
-  'task.welcome_note': `歡迎來到 Coffee CLI ☕
+  'task.welcome_note': `歡迎來到 Sinos CLI
 
 這張就是「便籤」——隨手寫，寫完點右上角 ▶ 整段發給 AI，不用再擠小輸入框。
 

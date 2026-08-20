@@ -5,7 +5,7 @@ import type { ToolType } from '../store/app-state';
 type PaneToolKey = NonNullable<ToolType>;
 
 // Tools eligible to fill a split pane — the launchpad's AI-CLIs plus the plain
-// terminal (a pane CAN be a terminal). Excludes only Coffee 101 and the split
+// terminal (a pane CAN be a terminal). Excludes only Sinos 101 and the split
 // views themselves (a pane can't be a nested split).
 export const PANE_TOOL_KEYS: readonly PaneToolKey[] = [
   'claude', 'opencode', 'mimocode', 'kilo', 'openclaw', 'codex', 'grok', 'antigravity', 'qwen',

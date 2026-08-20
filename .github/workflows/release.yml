@@ -91,7 +91,7 @@ jobs:
             label: macOS Apple Silicon
           # GitHub Actions exposed a dedicated x86_64 macOS runner
           # (`macos-15-intel`) in May 2026, after the `macos-13` Intel runner
-          # was deprecated. Without it, Intel Mac users had to run Coffee CLI
+          # was deprecated. Without it, Intel Mac users had to run Sinos CLI
           # under Rosetta from the arm64 DMG. Now we ship a native x64 DMG too.
           - platform: macos-15-intel
             args: '--target x86_64-apple-darwin'
@@ -210,11 +210,11 @@ jobs:
         run: cargo tauri build ${{ matrix.args }}
 
       # ── Stage + rename artifacts to platform-labelled format ──
-      # Tauri's bundler emits names like `Coffee CLI_1.9.2_amd64.deb` which
+      # Tauri's bundler emits names like `Sinos CLI_1.9.2_amd64.deb` which
       # don't tell the end user which OS they're for and use inconsistent
       # arch slugs (amd64/x86_64/x64 across formats, plus rpm's `-1` release
       # suffix). We rename to the EchoBird-style convention:
-      #   Coffee.CLI_<version>_<OS>_<arch>.<ext>
+      #   Sinos.CLI_<version>_<OS>_<arch>.<ext>
       # so a glance at the GitHub Releases page makes the OS/arch obvious
       # and the install scripts have a single uniform pattern to grep.
       - name: Stage and rename artifacts
@@ -224,7 +224,7 @@ jobs:
           VERSION: ${{ steps.tag.outputs.version }}
         run: |
           set -e
-          STAGING="$RUNNER_TEMP/coffee-release"
+          STAGING="$RUNNER_TEMP/sinos-release"
           mkdir -p "$STAGING"
 
           rename_one() {
@@ -235,22 +235,22 @@ jobs:
             local out=""
             case "$base" in
               # Windows
-              *_x64-setup.exe)        out="Coffee.CLI_${VERSION}_Windows_x64-setup.exe" ;;
-              *_x64_*.msi|*_x64.msi)  out="Coffee.CLI_${VERSION}_Windows_x64.msi" ;;
+              *_x64-setup.exe)        out="Sinos.CLI_${VERSION}_Windows_x64-setup.exe" ;;
+              *_x64_*.msi|*_x64.msi)  out="Sinos.CLI_${VERSION}_Windows_x64.msi" ;;
               # macOS — separate native DMGs for Apple Silicon and Intel.
               # Tauri's bundler uses `aarch64` / `x64` suffixes on the dmg
               # name (matching the target triple's first segment).
-              *_aarch64.dmg)          out="Coffee.CLI_${VERSION}_macOS_arm64.dmg" ;;
-              *_x64.dmg)              out="Coffee.CLI_${VERSION}_macOS_x64.dmg" ;;
+              *_aarch64.dmg)          out="Sinos.CLI_${VERSION}_macOS_arm64.dmg" ;;
+              *_x64.dmg)              out="Sinos.CLI_${VERSION}_macOS_x64.dmg" ;;
               # Linux .deb (Tauri uses Debian "amd64"/"arm64")
-              *_amd64.deb)            out="Coffee.CLI_${VERSION}_Linux_x64.deb" ;;
-              *_arm64.deb)            out="Coffee.CLI_${VERSION}_Linux_arm64.deb" ;;
+              *_amd64.deb)            out="Sinos.CLI_${VERSION}_Linux_x64.deb" ;;
+              *_arm64.deb)            out="Sinos.CLI_${VERSION}_Linux_arm64.deb" ;;
               # Linux .AppImage (upstream AppImage uses "amd64"/"aarch64")
-              *_amd64.AppImage)       out="Coffee.CLI_${VERSION}_Linux_x64.AppImage" ;;
-              *_aarch64.AppImage)     out="Coffee.CLI_${VERSION}_Linux_arm64.AppImage" ;;
+              *_amd64.AppImage)       out="Sinos.CLI_${VERSION}_Linux_x64.AppImage" ;;
+              *_aarch64.AppImage)     out="Sinos.CLI_${VERSION}_Linux_arm64.AppImage" ;;
               # Linux .rpm (uses dot-separated `<name>-<ver>-<release>.<arch>.rpm`)
-              *.x86_64.rpm)           out="Coffee.CLI_${VERSION}_Linux_x64.rpm" ;;
-              *.aarch64.rpm)          out="Coffee.CLI_${VERSION}_Linux_arm64.rpm" ;;
+              *.x86_64.rpm)           out="Sinos.CLI_${VERSION}_Linux_x64.rpm" ;;
+              *.aarch64.rpm)          out="Sinos.CLI_${VERSION}_Linux_arm64.rpm" ;;
               *) echo "  skip: $base"; return 0 ;;
             esac
             cp "$src" "$STAGING/$out"
@@ -305,24 +305,21 @@ jobs:
             echo "Creating release $TAG (draft)"
             # Releases are created as drafts so the maintainer can review CI
             # artifacts and edit the changelog before users see the new
-            # version. Clicking "Publish release" in the GitHub UI fires the
-            # release.published event consumed by
-            # .github/workflows/bump-version-json.yml, which bumps
-            # Web-Home/version.json on main → CF Pages redeploys → in-app
-            # update check picks up the new version. Until then, in-app
-            # users and install scripts still see the previous release.
+            # version. The Worker resolves the latest published release and
+            # exposes a platform version only after that platform's asset is
+            # uploaded, so no static version file needs a follow-up commit.
             NOTES_FILE="$GITHUB_WORKSPACE/install/release-notes-template.md"
             if [ -f "$NOTES_FILE" ]; then
               gh release create "$TAG" --repo "${{ github.repository }}" \
                 --draft \
-                --title "Coffee CLI $TAG" \
+                --title "Sinos CLI $TAG" \
                 --notes-file "$NOTES_FILE" \
                 || echo "Release already exists (created by sibling matrix job)"
             else
               gh release create "$TAG" --repo "${{ github.repository }}" \
                 --draft \
-                --title "Coffee CLI $TAG" \
-                --notes "Coffee CLI $TAG. See README for install instructions." \
+                --title "Sinos CLI $TAG" \
+                --notes "Sinos CLI $TAG. See README for install instructions." \
                 || echo "Release already exists (created by sibling matrix job)"
             fi
           fi

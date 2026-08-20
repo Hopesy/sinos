@@ -111,12 +111,16 @@ body {
   transition: color 0.25s ease;
 }
 
-.logo svg {
+.logo svg,
+.logo img {
   color: var(--brand-color);
 }
 
-/* Dynamic Logo Animation (Coffee Maker) */
+/* Brand icon */
 .dynamic-brand-logo {
+  display: block;
+  object-fit: contain;
+  border-radius: 8px;
   transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
@@ -245,7 +249,7 @@ body {
   padding: 0 2rem 4rem 2rem;
 }
 
-/* Coffee 101 Link (top of hero) */
+/* Sinos 101 Link (top of hero) */
 .opc-university-link {
   display: inline-flex;
   align-items: center;

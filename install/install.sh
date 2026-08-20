@@ -1,29 +1,13 @@
 #!/bin/sh
-# Coffee CLI — macOS / Linux Installer / Updater
-# Usage:   curl -fsSL https://coffeecli.com/install.sh | sh
-# License: AGPL-3.0-or-later (https://github.com/edison7009/Coffee-CLI/blob/main/LICENSE)
+# Sinos CLI — macOS / Linux Installer / Updater
+# Usage:   curl -fsSL https://raw.githubusercontent.com/Hopesy/sinos/main/install/install.sh | sh
+# License: AGPL-3.0-or-later (https://github.com/Hopesy/sinos/blob/main/LICENSE)
 
 set -e
 
-# Resolve version and binary via coffeecli.com (CF-hosted, China-accessible).
-# /version.json?platform=<p> returns the latest release tag ONLY when that
-# platform's asset has been uploaded to GitHub Releases. If CI is still
-# mid-build (mac ARM usually finishes first, Linux/Windows take longer),
-# the endpoint reports an empty version for the not-yet-ready platforms.
-# That prevents the earlier race where the version bumped instantly but
-# the per-platform binary took another 15 min to appear.
-# /download/<platform> is a CF Worker route that proxies the matching
-# GitHub Release asset. Keeps the install path off api.github.com so the
-# script doesn't stall on a blocked or slow GitHub API from mainland
-# networks.
-VERSION_BASE="https://coffeecli.com/version.json"
-DOWNLOAD_BASE="https://coffeecli.com/download"
-# Direct GitHub Releases fallback used when coffeecli.com is unreachable
-# (CF Worker outage, GitHub API rate limit on the shared Worker IP pool,
-# DNS issues). The user's own IP has its own 60/h anonymous quota and
-# won't share that pool, so this is meaningfully more reliable for the
-# single-user case.
-GITHUB_API="https://api.github.com/repos/edison7009/Coffee-CLI/releases/latest"
+# Resolve the latest published release directly from the Sinos repository.
+# A version is accepted only if this platform's asset is already present.
+GITHUB_API="https://api.github.com/repos/Hopesy/sinos/releases/latest"
 
 # Resolve escape sequences via printf at assignment time so the
 # variables hold real ESC bytes. Plain '\033[...m' string literals
@@ -38,17 +22,15 @@ RED=$(printf '\033[0;31m')
 RESET=$(printf '\033[0m')
 
 echo ""
-echo "  ${CYAN}Coffee CLI Installer${RESET}"
+echo "  ${CYAN}Sinos CLI Installer${RESET}"
 echo "  ${GRAY}────────────────────${RESET}"
 
 OS=$(uname -s)
 ARCH=$(uname -m)
 
-# Detect the concrete platform slug we'll hit on both /version.json and
-# /download. Picking this before the version lookup lets the server tell
-# us precisely whether OUR platform's installer is ready yet, rather than
-# reporting that SOME platform has a new release and then failing at
-# download time.
+# Detect the concrete platform slug used to select this machine's release
+# asset. Picking this before the lookup ensures we never advertise a release
+# whose installer is unavailable for the current platform.
 PLATFORM=""
 if [ "$OS" = "Darwin" ]; then
   # macOS ships native builds for both Apple Silicon and Intel since v2.7.6
@@ -64,8 +46,8 @@ if [ "$OS" = "Darwin" ]; then
       ;;
     *)
       echo "  ${RED}Unsupported macOS architecture: $ARCH${RESET}"
-      echo "  ${YELLOW}Coffee CLI ships arm64 and Intel x64 macOS builds.${RESET}"
-      echo "  ${YELLOW}Open an issue: https://github.com/edison7009/Coffee-CLI/issues${RESET}"
+      echo "  ${YELLOW}Sinos CLI ships arm64 and Intel x64 macOS builds.${RESET}"
+      echo "  ${YELLOW}Open an issue: https://github.com/Hopesy/sinos/issues${RESET}"
       exit 1
       ;;
   esac
@@ -84,15 +66,15 @@ elif [ "$OS" = "Linux" ]; then
       ;;
     *)
       echo "  ${RED}Unsupported Linux architecture: $ARCH${RESET}"
-      echo "  ${YELLOW}Coffee CLI currently ships amd64 and arm64 Linux builds only.${RESET}"
-      echo "  ${YELLOW}Open an issue: https://github.com/edison7009/Coffee-CLI/issues${RESET}"
+      echo "  ${YELLOW}Sinos CLI currently ships amd64 and arm64 Linux builds only.${RESET}"
+      echo "  ${YELLOW}Open an issue: https://github.com/Hopesy/sinos/issues${RESET}"
       exit 1
       ;;
   esac
   # Prefer dpkg (.deb on Debian/Ubuntu) → rpm (.rpm on Fedora/RHEL/
   # openSUSE/CentOS) → AppImage (everything else, including Arch /
   # NixOS / minimal containers). Each branch picks the arch-matching
-  # platform slug we'll send to /version.json and /download.
+  # platform slug we'll use to match the current release asset.
   if command -v dpkg > /dev/null 2>&1; then
     if [ "$LINUX_ARCH" = "arm64" ]; then
       PLATFORM="linux-arm64-deb"
@@ -121,8 +103,8 @@ fi
 # Mirrors the matchers in Web-Home/_worker.js — keep the two in sync.
 # v1.9.2+ uses platform-labelled filenames (Linux_x64.deb / macOS_arm64.dmg
 # / Windows_x64-setup.exe); we OR with the pre-v1.9.2 patterns so the
-# direct-from-GitHub fallback still resolves older releases that someone
-# might manually re-publish.
+# Direct GitHub release lookup also resolves older releases that someone might
+# manually re-publish.
 case "$PLATFORM" in
   macos-arm)            ASSET_GREP='(macOS_arm64|aarch64[^\"]*)\.dmg' ;;
   macos-intel)          ASSET_GREP='(macOS_x64|_x64)\.dmg' ;;
@@ -134,35 +116,13 @@ case "$PLATFORM" in
   linux-arm64-appimage) ASSET_GREP='(Linux_arm64|aarch64)\.AppImage' ;;
 esac
 
-FALLBACK_DOWNLOAD_URL=""
-
-# Parse version from version.json — minimal JSON, no jq required
 echo "  ${GRAY}Fetching latest version...${RESET}"
-VERSION_JSON=$(curl -fsSL "$VERSION_BASE?platform=$PLATFORM" 2>/dev/null || true)
-LATEST_VER=$(echo "$VERSION_JSON" | sed -E 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/')
-
-# coffeecli.com unreachable (CF Worker 502 / network) → fall back to
-# api.github.com directly. This pulls the latest release JSON, extracts
-# tag_name for the version and the matching asset's browser_download_url
-# for the later download step (so we don't hit coffeecli.com a second
-# time and fail again).
-if [ -z "$LATEST_VER" ] || [ "$LATEST_VER" = "$VERSION_JSON" ]; then
-  echo "  ${GRAY}Trying GitHub directly...${RESET}"
-  GH_JSON=$(curl -fsSL -H "User-Agent: CoffeeCLI-Install" "$GITHUB_API" 2>/dev/null || true)
-  if [ -n "$GH_JSON" ]; then
-    GH_TAG=$(echo "$GH_JSON" | grep -oE '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed -E 's/.*"([^"]*)"$/\1/')
-    LATEST_VER=$(echo "$GH_TAG" | sed 's/^v//')
-    if [ -n "$ASSET_GREP" ]; then
-      FALLBACK_DOWNLOAD_URL=$(echo "$GH_JSON" | grep -oE "\"browser_download_url\"[[:space:]]*:[[:space:]]*\"[^\"]*${ASSET_GREP}\"" | head -1 | sed -E 's/.*"(https[^"]*)"$/\1/')
-      # GitHub returned a release tag, but our platform's asset hasn't
-      # been uploaded yet (mid-CI). Reset LATEST_VER so the "try again
-      # in 10 minutes" branch below fires, instead of advertising a
-      # version we can't actually deliver.
-      if [ -z "$FALLBACK_DOWNLOAD_URL" ]; then
-        LATEST_VER=""
-      fi
-    fi
-  fi
+GH_JSON=$(curl -fsSL -H "User-Agent: SinosCLI-Install" "$GITHUB_API" 2>/dev/null || true)
+GH_TAG=$(echo "$GH_JSON" | grep -oE '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed -E 's/.*"([^"]*)"$/\1/')
+LATEST_VER=$(echo "$GH_TAG" | sed 's/^v//')
+DOWNLOAD_URL=$(echo "$GH_JSON" | grep -oE "\"browser_download_url\"[[:space:]]*:[[:space:]]*\"[^\"]*${ASSET_GREP}\"" | head -1 | sed -E 's/.*"(https[^"]*)"$/\1/')
+if [ -z "$DOWNLOAD_URL" ]; then
+  LATEST_VER=""
 fi
 
 # Empty `version` = the installer for this platform isn't out yet (CI
@@ -170,9 +130,9 @@ fi
 # "come back later" message and pause so the window doesn't auto-close
 # on the user before they read it (some launch flows spawn a fresh
 # terminal that closes the moment the script returns).
-if [ -z "$LATEST_VER" ] || [ "$LATEST_VER" = "$VERSION_JSON" ]; then
+if [ -z "$LATEST_VER" ]; then
   echo ""
-  echo "  ${YELLOW}A new version of Coffee CLI was just released.${RESET}"
+  echo "  ${YELLOW}A new version of Sinos CLI was just released.${RESET}"
   echo "  ${YELLOW}The server is currently redeploying.${RESET}"
   echo "  ${YELLOW}Please try again in about 10 minutes.${RESET}"
   echo ""
@@ -192,7 +152,7 @@ if [ "$OS" = "Darwin" ]; then
 
   # Detect installed version
   INSTALLED_VER=""
-  APP_PATH="/Applications/Coffee CLI.app"
+  APP_PATH="/Applications/Sinos CLI.app"
   if [ -d "$APP_PATH" ]; then
     INSTALLED_VER=$(defaults read "$APP_PATH/Contents/Info" CFBundleShortVersionString 2>/dev/null || true)
   fi
@@ -201,7 +161,7 @@ if [ "$OS" = "Darwin" ]; then
     echo "  ${GRAY}Installed: v$INSTALLED_VER${RESET}"
     if [ "$INSTALLED_VER" = "$LATEST_VER" ]; then
       echo ""
-      echo "  ${GREEN}Coffee CLI is already up to date (v$INSTALLED_VER).${RESET}"
+      echo "  ${GREEN}Sinos CLI is already up to date (v$INSTALLED_VER).${RESET}"
       echo ""
       exit 0
     fi
@@ -210,8 +170,8 @@ if [ "$OS" = "Darwin" ]; then
     echo "  ${GRAY}Not installed — performing fresh install...${RESET}"
   fi
 
-  URL="${FALLBACK_DOWNLOAD_URL:-$DOWNLOAD_BASE/$PLATFORM}"
-  TMP="/tmp/coffee-cli-v${LATEST_VER}.dmg"
+  URL="$DOWNLOAD_URL"
+  TMP="/tmp/sinos-cli-v${LATEST_VER}.dmg"
   # Always wipe any leftover bytes before downloading. Resume (`-C -`)
   # was REMOVED on purpose: when curl receives a CF 502 / connection
   # reset mid-response (error 56), it has already written the partial
@@ -235,7 +195,7 @@ if [ "$OS" = "Darwin" ]; then
 
   echo "  ${GRAY}Mounting DMG...${RESET}"
   # Grab the /Volumes/... mountpoint directly. `awk '{print $NF}'` breaks
-  # when the volume name has spaces (e.g. "Coffee CLI 1.6.4"), since $NF
+  # when the volume name has spaces (e.g. "Sinos CLI 1.6.4"), since $NF
   # only captures the last whitespace-delimited token.
   #
   # NOTE: do NOT pass -quiet here. -quiet suppresses the very stdout we
@@ -268,10 +228,10 @@ if [ "$OS" = "Darwin" ]; then
   # the dock icon does nothing, no error dialog. Removing the xattr
   # tells LaunchServices the user has explicitly opted to trust this
   # binary (equivalent to right-click → Open the first time).
-  xattr -dr com.apple.quarantine "/Applications/Coffee CLI.app" 2>/dev/null || true
+  xattr -dr com.apple.quarantine "/Applications/Sinos CLI.app" 2>/dev/null || true
 
   echo ""
-  echo "  ${GREEN}Done! Coffee CLI v$LATEST_VER installed.${RESET}"
+  echo "  ${GREEN}Done! Sinos CLI v$LATEST_VER installed.${RESET}"
   echo "  ${GRAY}Launch it from /Applications or Spotlight.${RESET}"
 
 # ── Linux ──────────────────────────────────────────────────────────────────────
@@ -280,17 +240,19 @@ elif [ "$OS" = "Linux" ]; then
   # Detect installed version — prefer package manager
   INSTALLED_VER=""
   if command -v dpkg > /dev/null 2>&1; then
-    INSTALLED_VER=$(dpkg -s coffee-cli 2>/dev/null | grep '^Version:' | sed 's/Version: //' || true)
+    INSTALLED_VER=$(dpkg -s sinos-cli 2>/dev/null | grep '^Version:' | sed 's/Version: //' || true)
+    [ -n "$INSTALLED_VER" ] || INSTALLED_VER=$(dpkg -s coffee-cli 2>/dev/null | grep '^Version:' | sed 's/Version: //' || true)
   fi
   if [ -z "$INSTALLED_VER" ] && command -v rpm > /dev/null 2>&1; then
-    INSTALLED_VER=$(rpm -q --queryformat '%{VERSION}' coffee-cli 2>/dev/null || true)
+    INSTALLED_VER=$(rpm -q --queryformat '%{VERSION}' sinos-cli 2>/dev/null || true)
+    [ -n "$INSTALLED_VER" ] || INSTALLED_VER=$(rpm -q --queryformat '%{VERSION}' coffee-cli 2>/dev/null || true)
   fi
 
   if [ -n "$INSTALLED_VER" ]; then
     echo "  ${GRAY}Installed: v$INSTALLED_VER${RESET}"
     if [ "$INSTALLED_VER" = "$LATEST_VER" ]; then
       echo ""
-      echo "  ${GREEN}Coffee CLI is already up to date (v$INSTALLED_VER).${RESET}"
+      echo "  ${GREEN}Sinos CLI is already up to date (v$INSTALLED_VER).${RESET}"
       echo ""
       exit 0
     fi
@@ -306,10 +268,10 @@ elif [ "$OS" = "Linux" ]; then
   # `apt remove` / `dnf remove`); AppImage is portable but the user
   # has to ensure ~/.local/bin is in PATH themselves.
   if command -v dpkg > /dev/null 2>&1; then
-    TMP="/tmp/coffee-cli-v${LATEST_VER}.deb"
+    TMP="/tmp/sinos-cli-v${LATEST_VER}.deb"
     rm -f "$TMP"
     echo "  ${GRAY}Downloading .deb package...${RESET}"
-    DL_URL="${FALLBACK_DOWNLOAD_URL:-$DOWNLOAD_BASE/$PLATFORM}"
+    DL_URL="$DOWNLOAD_URL"
     if ! curl -fL --progress-bar --retry 5 --retry-all-errors --retry-delay 2 "$DL_URL" -o "$TMP"; then
       echo ""
       echo "  ${RED}Download failed.${RESET}"
@@ -321,15 +283,15 @@ elif [ "$OS" = "Linux" ]; then
     sudo dpkg -i "$TMP"
     rm "$TMP"
     echo ""
-    echo "  ${GREEN}Done! Coffee CLI v$LATEST_VER installed.${RESET}"
+    echo "  ${GREEN}Done! Sinos CLI v$LATEST_VER installed.${RESET}"
     exit 0
   fi
 
   if command -v rpm > /dev/null 2>&1; then
-    TMP="/tmp/coffee-cli-v${LATEST_VER}.rpm"
+    TMP="/tmp/sinos-cli-v${LATEST_VER}.rpm"
     rm -f "$TMP"
     echo "  ${GRAY}Downloading .rpm package...${RESET}"
-    DL_URL="${FALLBACK_DOWNLOAD_URL:-$DOWNLOAD_BASE/$PLATFORM}"
+    DL_URL="$DOWNLOAD_URL"
     if ! curl -fL --progress-bar --retry 5 --retry-all-errors --retry-delay 2 "$DL_URL" -o "$TMP"; then
       echo ""
       echo "  ${RED}Download failed.${RESET}"
@@ -352,20 +314,20 @@ elif [ "$OS" = "Linux" ]; then
     fi
     rm "$TMP"
     echo ""
-    echo "  ${GREEN}Done! Coffee CLI v$LATEST_VER installed.${RESET}"
+    echo "  ${GREEN}Done! Sinos CLI v$LATEST_VER installed.${RESET}"
     exit 0
   fi
 
   # AppImage fallback
-  DEST="$HOME/.local/bin/coffee-cli"
+  DEST="$HOME/.local/bin/sinos-cli"
   mkdir -p "$HOME/.local/bin"
   # Download to a versioned temp first, then move into place. Writing
   # straight to $DEST would clobber a working install if the download
   # failed partway.
-  TMP="/tmp/coffee-cli-v${LATEST_VER}.AppImage"
+  TMP="/tmp/sinos-cli-v${LATEST_VER}.AppImage"
   rm -f "$TMP"
   echo "  ${GRAY}Downloading AppImage...${RESET}"
-  DL_URL="${FALLBACK_DOWNLOAD_URL:-$DOWNLOAD_BASE/$PLATFORM}"
+  DL_URL="$DOWNLOAD_URL"
   if ! curl -fL --progress-bar --retry 5 --retry-all-errors --retry-delay 2 "$DL_URL" -o "$TMP"; then
     echo ""
     echo "  ${RED}Download failed.${RESET}"
@@ -377,7 +339,7 @@ elif [ "$OS" = "Linux" ]; then
   chmod +x "$DEST"
 
   echo ""
-  echo "  ${GREEN}Done! Coffee CLI v$LATEST_VER installed to $DEST${RESET}"
+  echo "  ${GREEN}Done! Sinos CLI v$LATEST_VER installed to $DEST${RESET}"
   echo "  ${GRAY}Make sure ~/.local/bin is in your PATH.${RESET}"
 
 fi

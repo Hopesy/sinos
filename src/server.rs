@@ -2,9 +2,301 @@ use crate::terminal;
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{atomic::{AtomicU64, Ordering}, Mutex, OnceLock};
 use tauri::{State, Manager, Emitter};
 use tauri_plugin_dialog::DialogExt;
+
+const EDITOR_MAX_BYTES: usize = 5 * 1024 * 1024;
+static EDITOR_TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+#[derive(Serialize)]
+struct EditorFileSnapshot {
+    content: String,
+    revision: String,
+    line_ending: String,
+    has_utf8_bom: bool,
+    size: u64,
+}
+
+#[derive(Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+enum EditorSaveResponse {
+    Saved { revision: String, size: u64 },
+    Conflict { current_revision: Option<String> },
+}
+
+fn editor_revision(bytes: &[u8]) -> String {
+    // FNV-1a is small, deterministic, and sufficient for an in-process
+    // optimistic-save token without adding another hashing dependency.
+    let mut hash: u64 = 0xcbf29ce484222325;
+    for byte in bytes {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    format!("fnv1a:{:016x}:{}", hash, bytes.len())
+}
+
+fn editor_line_ending(bytes: &[u8]) -> &'static str {
+    if bytes.windows(2).any(|pair| pair == b"\r\n") { "crlf" } else { "lf" }
+}
+
+fn editor_workspace_path(path: &str, workspace_root: &str) -> Result<(PathBuf, PathBuf), String> {
+    let file = std::fs::canonicalize(path).map_err(|e| format!("EDITOR_FILE_UNAVAILABLE: {e}"))?;
+    let root = std::fs::canonicalize(workspace_root).map_err(|e| format!("EDITOR_WORKSPACE_UNAVAILABLE: {e}"))?;
+    if !file.starts_with(&root) {
+        return Err("EDITOR_PATH_OUTSIDE_WORKSPACE".to_string());
+    }
+    Ok((file, root))
+}
+
+fn read_editor_bytes(path: &str, workspace_root: &str) -> Result<(PathBuf, Vec<u8>), String> {
+    let (file, _root) = editor_workspace_path(path, workspace_root)?;
+    let metadata = std::fs::metadata(&file).map_err(|e| format!("EDITOR_FILE_UNAVAILABLE: {e}"))?;
+    if !metadata.is_file() {
+        return Err("EDITOR_NOT_A_FILE".to_string());
+    }
+    if metadata.len() > EDITOR_MAX_BYTES as u64 {
+        return Err(format!("EDITOR_FILE_TOO_LARGE:{EDITOR_MAX_BYTES}"));
+    }
+    let bytes = std::fs::read(&file).map_err(|e| format!("EDITOR_READ_FAILED: {e}"))?;
+    if bytes.len() > EDITOR_MAX_BYTES {
+        return Err(format!("EDITOR_FILE_TOO_LARGE:{EDITOR_MAX_BYTES}"));
+    }
+    if !stats_is_text(&bytes) {
+        return Err("EDITOR_BINARY_FILE".to_string());
+    }
+    Ok((file, bytes))
+}
+
+#[tauri::command]
+fn read_editor_file(path: String, workspace_root: String) -> Result<EditorFileSnapshot, String> {
+    let (_file, bytes) = read_editor_bytes(&path, &workspace_root)?;
+    let has_utf8_bom = bytes.starts_with(&[0xEF, 0xBB, 0xBF]);
+    let text_bytes = if has_utf8_bom { &bytes[3..] } else { &bytes[..] };
+    let content = std::str::from_utf8(text_bytes)
+        .map_err(|_| "EDITOR_UNSUPPORTED_ENCODING".to_string())?
+        .to_string();
+    Ok(EditorFileSnapshot {
+        content,
+        revision: editor_revision(&bytes),
+        line_ending: editor_line_ending(text_bytes).to_string(),
+        has_utf8_bom,
+        size: bytes.len() as u64,
+    })
+}
+
+fn normalize_editor_content(content: &str, line_ending: &str) -> Result<Vec<u8>, String> {
+    if line_ending != "lf" && line_ending != "crlf" {
+        return Err("EDITOR_INVALID_LINE_ENDING".to_string());
+    }
+    let normalized = content.replace("\r\n", "\n").replace('\r', "\n");
+    let output = if line_ending == "crlf" {
+        normalized.replace('\n', "\r\n")
+    } else {
+        normalized
+    };
+    Ok(output.into_bytes())
+}
+
+fn atomic_replace_editor_file(temp: &std::path::Path, target: &std::path::Path) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        use windows::core::PCWSTR;
+        use windows::Win32::Storage::FileSystem::{MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH};
+        let source: Vec<u16> = temp.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
+        let destination: Vec<u16> = target.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
+        unsafe {
+            MoveFileExW(
+                PCWSTR(source.as_ptr()),
+                PCWSTR(destination.as_ptr()),
+                MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+            ).map_err(|e| format!("EDITOR_REPLACE_FAILED: {e}"))?;
+        }
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        std::fs::rename(temp, target).map_err(|e| format!("EDITOR_REPLACE_FAILED: {e}"))
+    }
+}
+
+#[tauri::command]
+fn write_editor_file(
+    path: String,
+    workspace_root: String,
+    content: String,
+    expected_revision: String,
+    line_ending: String,
+    has_utf8_bom: bool,
+) -> Result<EditorSaveResponse, String> {
+    let (target, current_bytes) = read_editor_bytes(&path, &workspace_root)?;
+    let current_revision = editor_revision(&current_bytes);
+    if current_revision != expected_revision {
+        return Ok(EditorSaveResponse::Conflict { current_revision: Some(current_revision) });
+    }
+
+    let mut output = normalize_editor_content(&content, &line_ending)?;
+    if has_utf8_bom {
+        let mut with_bom = Vec::with_capacity(output.len() + 3);
+        with_bom.extend_from_slice(&[0xEF, 0xBB, 0xBF]);
+        with_bom.append(&mut output);
+        output = with_bom;
+    }
+    if output.len() > EDITOR_MAX_BYTES {
+        return Err(format!("EDITOR_FILE_TOO_LARGE:{EDITOR_MAX_BYTES}"));
+    }
+
+    let parent = target.parent().ok_or_else(|| "EDITOR_PARENT_UNAVAILABLE".to_string())?;
+    let temp_sequence = EDITOR_TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let temp_name = format!(
+        ".{}.sinos-edit-{}-{}.tmp",
+        target.file_name().and_then(|n| n.to_str()).unwrap_or("file"),
+        std::process::id(),
+        temp_sequence,
+    );
+    let temp = parent.join(temp_name);
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temp)
+        .map_err(|e| format!("EDITOR_TEMP_CREATE_FAILED: {e}"))?;
+    use std::io::Write;
+    let write_result = (|| -> Result<(), String> {
+        file.write_all(&output).map_err(|e| format!("EDITOR_WRITE_FAILED: {e}"))?;
+        file.sync_all().map_err(|e| format!("EDITOR_FLUSH_FAILED: {e}"))?;
+        Ok(())
+    })();
+    drop(file);
+    if let Err(error) = write_result {
+        let _ = std::fs::remove_file(&temp);
+        return Err(error);
+    }
+    let target_permissions = match std::fs::metadata(&target) {
+        Ok(metadata) => metadata.permissions(),
+        Err(error) => {
+            let _ = std::fs::remove_file(&temp);
+            return Err(format!("EDITOR_FILE_UNAVAILABLE: {error}"));
+        }
+    };
+    if let Err(error) = std::fs::set_permissions(&temp, target_permissions) {
+        let _ = std::fs::remove_file(&temp);
+        return Err(format!("EDITOR_PERMISSION_COPY_FAILED: {error}"));
+    }
+    // Re-check immediately before replacement. This closes the normal race
+    // where an agent writes while the temporary file is being flushed.
+    let (latest_target, latest_bytes) = match read_editor_bytes(&path, &workspace_root) {
+        Ok(current) => current,
+        Err(error) => {
+            let _ = std::fs::remove_file(&temp);
+            return Err(error);
+        }
+    };
+    let latest_revision = editor_revision(&latest_bytes);
+    if latest_target != target || latest_revision != expected_revision {
+        let _ = std::fs::remove_file(&temp);
+        return Ok(EditorSaveResponse::Conflict { current_revision: Some(latest_revision) });
+    }
+    if let Err(error) = atomic_replace_editor_file(&temp, &target) {
+        let _ = std::fs::remove_file(&temp);
+        return Err(error);
+    }
+    Ok(EditorSaveResponse::Saved { revision: editor_revision(&output), size: output.len() as u64 })
+}
+
+#[cfg(test)]
+mod editor_file_tests {
+    use super::*;
+
+    fn fixture_dir(name: &str) -> PathBuf {
+        let sequence = EDITOR_TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!(
+            "sinos-cli-editor-{name}-{}-{sequence}",
+            std::process::id(),
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("create editor fixture directory");
+        dir
+    }
+
+    #[test]
+    fn editor_content_normalizes_requested_line_ending() {
+        assert_eq!(
+            normalize_editor_content("one\r\ntwo\rthree\n", "lf").unwrap(),
+            b"one\ntwo\nthree\n",
+        );
+        assert_eq!(
+            normalize_editor_content("one\r\ntwo\rthree\n", "crlf").unwrap(),
+            b"one\r\ntwo\r\nthree\r\n",
+        );
+        assert_eq!(
+            normalize_editor_content("text", "native").unwrap_err(),
+            "EDITOR_INVALID_LINE_ENDING",
+        );
+    }
+
+    #[test]
+    fn editor_revision_covers_content_and_length() {
+        assert_eq!(editor_revision(b"same"), editor_revision(b"same"));
+        assert_ne!(editor_revision(b"same"), editor_revision(b"same\n"));
+        assert_ne!(editor_revision(b"abc"), editor_revision(b"abd"));
+    }
+
+    #[test]
+    fn editor_save_preserves_utf8_bom_and_crlf() {
+        let root = fixture_dir("bom-crlf");
+        let path = root.join("sample.txt");
+        std::fs::write(&path, b"\xEF\xBB\xBFbefore\r\n").expect("write editor fixture");
+        let snapshot = read_editor_file(
+            path.to_string_lossy().into_owned(),
+            root.to_string_lossy().into_owned(),
+        ).expect("read editor fixture");
+
+        let response = write_editor_file(
+            path.to_string_lossy().into_owned(),
+            root.to_string_lossy().into_owned(),
+            "after\nnext\n".to_string(),
+            snapshot.revision,
+            snapshot.line_ending,
+            snapshot.has_utf8_bom,
+        ).expect("save editor fixture");
+
+        assert!(matches!(response, EditorSaveResponse::Saved { .. }));
+        assert_eq!(
+            std::fs::read(&path).expect("read saved fixture"),
+            b"\xEF\xBB\xBFafter\r\nnext\r\n",
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn editor_save_rejects_stale_revision_without_overwrite() {
+        let root = fixture_dir("revision-conflict");
+        let path = root.join("sample.txt");
+        std::fs::write(&path, b"before\n").expect("write editor fixture");
+        let snapshot = read_editor_file(
+            path.to_string_lossy().into_owned(),
+            root.to_string_lossy().into_owned(),
+        ).expect("read editor fixture");
+        std::fs::write(&path, b"external\n").expect("write external change");
+
+        let response = write_editor_file(
+            path.to_string_lossy().into_owned(),
+            root.to_string_lossy().into_owned(),
+            "local\n".to_string(),
+            snapshot.revision,
+            snapshot.line_ending,
+            snapshot.has_utf8_bom,
+        ).expect("check editor conflict");
+
+        assert!(matches!(response, EditorSaveResponse::Conflict { .. }));
+        assert_eq!(
+            std::fs::read(&path).expect("read conflicted fixture"),
+            b"external\n",
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
+}
 
 /// Shared app state
 pub struct AppState {
@@ -4463,9 +4755,8 @@ fn open_url(url: String) -> Result<(), String> {
 
 // ─── In-app self-update ────────────────────────────────────────────────────
 //
-// Downloads the latest installer from `coffeecli.com/download/<os>` — a CF
-// Worker that proxies the matching GitHub Release asset (China-accessible,
-// stable name, no per-version URL to construct). Streams the body so the
+// Resolves the latest Sinos release asset through the GitHub Releases API.
+// Streams the installer body so the
 // frontend can paint a circular download-progress ring via the
 // `self-update-progress` event, then launches the installer and exits so it
 // can replace our running files. ureq is blocking + rustls, so the whole
@@ -4486,18 +4777,71 @@ fn emit_self_update(app: &tauri::AppHandle, status: &str, percent: u32) {
 
 #[tauri::command]
 async fn download_and_install_update(app: tauri::AppHandle) -> Result<(), String> {
-    let os = if cfg!(target_os = "windows") {
+    // Release lookup is blocking (`ureq`). Keep both the GitHub request and
+    // the subsequent download on the blocking pool so a slow/rate-limited
+    // API call cannot stall Tauri's async command runtime.
+    let platform = if cfg!(target_os = "windows") {
         "windows"
+    } else if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
+        "macos-arm"
     } else if cfg!(target_os = "macos") {
-        "macos"
+        "macos-intel"
+    } else if cfg!(target_arch = "aarch64") {
+        "linux-arm64-appimage"
     } else {
-        "linux"
+        "linux-appimage"
     };
-    let url = format!("https://coffeecli.com/download/{os}");
     let app2 = app.clone();
-    tauri::async_runtime::spawn_blocking(move || run_self_update(&app2, &url))
+    tauri::async_runtime::spawn_blocking(move || {
+        let url = match resolve_latest_release_asset(platform) {
+            Ok(url) => url,
+            Err(error) => {
+                emit_self_update(&app2, "error", 0);
+                return Err(error);
+            }
+        };
+        run_self_update(&app2, &url)
+    })
         .await
         .map_err(|e| format!("self-update task join failed: {e}"))?
+}
+
+fn resolve_latest_release_asset(platform: &str) -> Result<String, String> {
+    let response = ureq::get("https://api.github.com/repos/Hopesy/sinos/releases/latest")
+        .set("Accept", "application/vnd.github+json")
+        .set("User-Agent", "SinosCLI-Updater")
+        .call()
+        .map_err(|e| format!("release lookup failed: {e}"))?;
+    // `ureq`'s `into_json` method is behind its optional `json` feature,
+    // which this crate does not enable. Parse through the existing direct
+    // serde_json dependency so Cargo.toml/Cargo.lock stay unchanged.
+    let release_body = response
+        .into_string()
+        .map_err(|e| format!("release response read failed: {e}"))?;
+    let release: serde_json::Value = serde_json::from_str(&release_body)
+        .map_err(|e| format!("invalid release response: {e}"))?;
+    let assets = release["assets"]
+        .as_array()
+        .ok_or_else(|| "release response has no assets".to_string())?;
+    let matches_platform = |name: &str| match platform {
+        "windows" => name.ends_with("Windows_x64-setup.exe") || name.ends_with("x64-setup.exe"),
+        "macos-arm" => name.ends_with("macOS_arm64.dmg") || name.ends_with("aarch64.dmg"),
+        "macos-intel" => name.ends_with("macOS_x64.dmg") || name.ends_with("_x64.dmg"),
+        "linux-appimage" => name.ends_with("Linux_x64.AppImage") || name.ends_with("amd64.AppImage"),
+        "linux-arm64-appimage" => {
+            name.ends_with("Linux_arm64.AppImage") || name.ends_with("aarch64.AppImage")
+        }
+        _ => false,
+    };
+    assets
+        .iter()
+        .find_map(|asset| {
+            let name = asset["name"].as_str()?;
+            matches_platform(name)
+                .then(|| asset["browser_download_url"].as_str().map(str::to_owned))
+                .flatten()
+        })
+        .ok_or_else(|| format!("latest release has no installer for {platform}"))
 }
 
 fn run_self_update(app: &tauri::AppHandle, url: &str) -> Result<(), String> {
@@ -4524,7 +4868,7 @@ fn run_self_update(app: &tauri::AppHandle, url: &str) -> Result<(), String> {
     } else {
         "bin"
     };
-    let out_path = std::env::temp_dir().join(format!("coffee-cli-update-setup.{ext}"));
+    let out_path = std::env::temp_dir().join(format!("sinos-cli-update-setup.{ext}"));
 
     let mut reader = resp.into_reader();
     let mut file = std::fs::File::create(&out_path).map_err(|e| {
@@ -4694,6 +5038,8 @@ pub fn start_ui(pending_launch: Option<crate::launch::LaunchRequest>) -> anyhow:
             read_clipboard_image,
             list_directory,
             read_text_file,
+            read_editor_file,
+            write_editor_file,
             show_in_folder,
             fs_delete,
             fs_rename,

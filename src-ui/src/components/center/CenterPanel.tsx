@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { focusTerminal } from '../../lib/focus-registry';
 import { onWindowForeground } from '../../lib/window-focus-filter';
@@ -12,6 +12,11 @@ import { DiffPanel } from '../right/DiffPanel';
 import { supportsNativeAgentStatus, useAppState, type ToolType } from '../../store/app-state';
 import { isFrostShape } from '../../lib/personalization';
 import { supportsConversationTool } from '../../lib/chat-tools';
+import { useT } from '../../i18n/useT';
+
+const EditorSurface = lazy(() => import('./EditorSurface').then(module => ({
+  default: module.EditorSurface,
+})));
 
 // Dropdown shown when a tool card's folder icon is clicked: the globally
 // recent project folders (any tool that used one) + "Open folder…" last.
@@ -109,7 +114,6 @@ interface RemoteHistoryItem {
 }
 import { isTauri, commands } from '../../tauri';
 import { getToolDisplayName } from '../../lib/tool-info';
-import { useT } from '../../i18n/useT';
 import './CenterPanel.css';
 
 // Tool icon assets bundled inline by Vite. PNGs use ?inline → base64 data URI;
@@ -263,7 +267,7 @@ const SvgCursor    = () => inlineSvgIcon(CURSOR_SVG);
 const SvgCline     = () => inlineSvgIcon(CLINE_SVG);
 const SvgOmp       = () => inlineSvgIcon(OMP_SVG);
 
-// Coffee 101 card icon — animated coffee mark (same as the brand mark
+// Sinos 101 card icon — utility mark for the onboarding course.
 // now portaled into the titlebar from Explorer.tsx): steam wave loops 3s, cup
 // body draws on first paint then fills. Inlined SVG so currentColor
 // follows the theme accent. Sized at 1em so it scales with the launchpad
@@ -273,8 +277,8 @@ const SvgOmp       = () => inlineSvgIcon(OMP_SVG);
 // card key is `'installer'` — kept that way to preserve users' existing
 // localStorage pin state (`coffee_pinned_items` may contain "agent:installer").
 // The card itself is no longer a one-click installer (that approach was
-// abandoned, see the click handler comment); it now opens the Coffee 101
-// course on coffeecli.com.
+// abandoned, see the click handler comment); it now opens the Sinos 101
+// course on the distribution site.
 const SvgInstaller = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -492,6 +496,8 @@ export function CenterPanel() {
   // whether it (not a terminal tab) is the focused surface.
   const diffTabVisible = state.diffMode === 'tab' && state.diffSelection !== null;
   const diffTabActive = state.diffTabActive;
+  const editorTabVisible = state.editorTabs.length > 0;
+  const editorTabActive = state.editorTabActive;
   // Diff tab title = basename of the selected file (mirrors DiffPanel's own
   // header name). Computed here so the chrome-tab strip shows it without
   // mounting the DiffPanel body.
@@ -614,7 +620,7 @@ export function CenterPanel() {
       requiresCwd: !CWD_AGNOSTIC_AI_CLI.has(item.key),
     }));
 
-    // "Agent Tools" grid on the Library page: Terminal + Coffee 101, then
+    // "Agent Tools" grid on the Library page: Terminal + Sinos 101, then
     // the independent split tools descending 4→3→2.
     const utilities = [
       // Terminal is an AI-CLI-like tool (needs cwd) rather than a 'utility'.
@@ -641,7 +647,7 @@ export function CenterPanel() {
         type: 'utility' as const,
         requiresCwd: false,
       },
-      { key: 'installer' as ToolType, label: 'Coffee 101', icon: <SvgInstaller />, type: 'utility' as const, requiresCwd: false },
+      { key: 'installer' as ToolType, label: 'Sinos 101', icon: <SvgInstaller />, type: 'utility' as const, requiresCwd: false },
     ];
 
     return [...aiCliEntries, ...utilities];
@@ -672,7 +678,7 @@ export function CenterPanel() {
   const lastToolsScanAt = useRef<number>(0);
   // Previous toolsInstalled snapshot — diffed against each new scan so
   // we can maintain its cleanup/theme integration exactly when a CLI flips from
-  // not-installed → installed during a Coffee CLI session. `null`
+    // not-installed → installed during a Sinos CLI session. `null`
   // sentinel = "we haven't scanned yet"; the very first scan does not
   // trigger any install IPCs because startup's install_all() already
   // covered whatever was on PATH at launch — diffing against `null`
@@ -853,7 +859,7 @@ export function CenterPanel() {
   }, [isLaunchpadMode, showLibrary]);
 
   // Window-focus rescan — picks up CLIs the user just installed in an
-  // external terminal without forcing them to restart Coffee CLI. The
+    // external terminal without forcing them to restart Sinos CLI. The
   // launchpad-mode useEffect above only re-fires when isLaunchpadMode
   // / showLibrary actually change; sitting on the launchpad while
   // alt-tabbing out to install a CLI doesn't toggle either, so the
@@ -898,7 +904,7 @@ export function CenterPanel() {
     });
   };
 
-  // External launch (`coffee-cli launch --tool <id> [--cwd <dir>]`) — reached
+  // External launch (`sinos-cli launch --tool <id> [--cwd <dir>]`) — reached
   // from the cold-start drain (takePendingLaunch) and the warm-start
   // single-instance forward ('launch-request' event). Reuses an idle
   // launchpad tab when one exists so the agent never hijacks a tab that
@@ -1315,7 +1321,7 @@ export function CenterPanel() {
           // A terminal tab is "active" only when it's the focused surface —
           // when the diff tab is focused (diffTabActive), no terminal tab
           // should show the active highlight (the diff chrome-tab does).
-          const isActive = session.id === activeTerminalId && !diffTabActive;
+            const isActive = session.id === activeTerminalId && !diffTabActive && !editorTabActive;
           const { icon, title: baseTitle } = renderTabContent(session, isActive);
           // Tool's live OSC 0/2 title (Claude Code conversation summary, etc.)
           // overrides the cwd basename when the tool has set a non-empty one.
@@ -1399,6 +1405,42 @@ export function CenterPanel() {
         });
         })()}
 
+        {/* Editor tabs — file surfaces that share the center chrome with
+            terminals and the read-only diff tab. */}
+        {editorTabVisible && state.editorTabs.map(editorTab => {
+          const isActiveEditor = editorTabActive && editorTab.id === state.activeEditorId;
+          const title = editorTab.path.replace(/\\/g, '/').split('/').pop() || editorTab.path;
+          return (
+            <div
+              key={editorTab.id}
+              className={`chrome-tab ${isActiveEditor ? 'active' : ''}`}
+              onClick={() => dispatch({ type: 'SET_EDITOR_ACTIVE', id: editorTab.id })}
+            >
+              <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="8" y1="13" x2="16" y2="13" />
+                <line x1="8" y1="17" x2="14" y2="17" />
+              </svg>
+              <span className="tab-title" title={editorTab.path} style={{ flex: '0 1 auto', minWidth: 0, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                {editorTab.dirty ? `● ${title}` : title}
+              </span>
+              <div className="tab-actions tab-actions--close-only">
+                <button className="tab-close-btn" onClick={(event) => {
+                  event.stopPropagation();
+                  if (editorTab.dirty && !window.confirm(t('editor.close_unsaved'))) return;
+                  dispatch({ type: 'CLOSE_EDITOR', id: editorTab.id });
+                }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          );
+        })}
+
         {/* Diff tab — a peer of the terminal tabs in the strip, but not a
             PTY. Visible only in tab mode with a selection. Clicking it
             focuses the diff surface (SET_DIFF_TAB_ACTIVE); its X clears the
@@ -1449,7 +1491,7 @@ export function CenterPanel() {
               // Hide every terminal wrapper while the diff tab is focused —
               // the diff surface takes over the content area (the underlying
               // PTYs stay mounted, just not displayed).
-              display: (t.id === activeTerminalId && !diffTabActive) ? 'flex' : 'none',
+              display: (t.id === activeTerminalId && !diffTabActive && !editorTabActive) ? 'flex' : 'none',
               width: '100%',
               height: '100%',
               position: 'relative'
@@ -1492,8 +1534,8 @@ export function CenterPanel() {
                       toolName={AGENT_CATALOG.find(a => a.key === t.tool)?.label}
                       theme={state.currentTheme}
                       lang={state.currentLang}
-                      isActive={t.id === activeTerminalId && !diffTabActive && t.viewMode !== 'chat'}
-                      conversationActive={t.id === activeTerminalId && !diffTabActive && t.viewMode === 'chat'}
+                       isActive={t.id === activeTerminalId && !diffTabActive && !editorTabActive && t.viewMode !== 'chat'}
+                       conversationActive={t.id === activeTerminalId && !diffTabActive && !editorTabActive && t.viewMode === 'chat'}
                       toolData={t.toolData}
                       folderPath={t.folderPath}
                       resumeToken={t.resumeToken}
@@ -1520,7 +1562,7 @@ export function CenterPanel() {
                         startedAt={t.startedAt}
                         pending={t.chatPending}
                         agentStatus={t.agentStatus}
-                        isActive={t.id === activeTerminalId && !diffTabActive}
+                        isActive={t.id === activeTerminalId && !diffTabActive && !editorTabActive}
                         isVisible={t.viewMode === 'chat'}
                         onPendingResolved={() => dispatch({ type: 'SET_CHAT_PENDING', id: t.id })}
                         onPasteToDraft={(text) => dispatch({ type: 'APPEND_GAMBIT_DRAFT', id: t.id, text })}
@@ -1568,7 +1610,27 @@ export function CenterPanel() {
           </div>
         )}
 
-        {isLaunchpadMode && activeTerminalId && !diffTabActive && (
+        {state.editorTabs.map(editorTab => {
+          const isActiveEditor = editorTabActive && editorTab.id === state.activeEditorId;
+          return (
+            <div
+              key={editorTab.id}
+              className="terminal-wrapper"
+              style={{ display: isActiveEditor ? 'flex' : 'none', width: '100%', height: '100%', position: 'relative' }}
+            >
+              <Suspense fallback={<div className="editor-loading-surface">{t('editor.loading')}</div>}>
+                <EditorSurface
+                  tabId={editorTab.id}
+                  path={editorTab.path}
+                  workspaceRoot={editorTab.workspaceRoot}
+                  isActive={isActiveEditor}
+                />
+              </Suspense>
+            </div>
+          );
+        })}
+
+        {isLaunchpadMode && activeTerminalId && !diffTabActive && !editorTabActive && (
           <div className={`launchpad-container${hasBg && bgUrl ? ' launchpad-has-bg' : ''}`} style={{ position: 'relative' }}>
             {hasBg && bgUrl && (
               <div className="launchpad-bg">
@@ -1611,7 +1673,7 @@ export function CenterPanel() {
                                   className="launchpad-card"
                                   onClick={() => {
                                     if (disabled) return;
-                                    // The "Coffee 101" card (key kept as
+                                    // The "Sinos 101" card (key kept as
                                     // 'installer' for backward compat with
                                     // pinned-state in localStorage) is no
                                     // longer a one-click installer — that
@@ -1620,9 +1682,9 @@ export function CenterPanel() {
                                     // python + each AI CLI is intractable
                                     // and failure modes leave users worse off
                                     // than self-serve. The card now opens the
-                                    // Claude Code course on coffeecli.com,
-                                    // which is the upstream of all our
-                                    // install/usage knowledge.
+                                    // Deployed Sinos 101 course. The repository
+                                    // still declares coffeecli.com as its live
+                                    // homepage until a Sinos domain is assigned.
                                     if (tool.key === 'installer') {
                                       commands.openUrl('https://coffeecli.com/courses/claude-code').catch(() => {});
                                       return;
@@ -1914,13 +1976,13 @@ export function CenterPanel() {
                             );
                           })}
                         </div>
-                        {/* Section 2: Agent Tools (3-col, split tools first, Coffee 101 last) */}
+                        {/* Section 2: Agent Tools (3-col, split tools first, Sinos 101 last) */}
                         <div className="library-section-title">{t('library.agent_tools')}</div>
                         <div className="library-grid library-grid--tools">
                           {AGENT_CATALOG.filter(item => item.type === 'utility').map(item => {
                             const pinId = `agent:${item.key}`;
                             const isPinned = pinnedItems.includes(pinId);
-                            // Utility tools (multi-agent / Coffee 101 /
+                            // Utility tools (multi-agent / Sinos 101 /
                             // hyper-agent / N-split) don't take a launch
                             // path — no gear, just border-as-state.
                             return (

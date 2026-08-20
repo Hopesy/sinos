@@ -1,5 +1,28 @@
+export const editorFallback = {
+  'menu.open_editor': 'Open in editor',
+  'editor.loading': 'Loading editor…',
+  'editor.reading': 'Reading file…',
+  'editor.retry': 'Retry',
+  'editor.save': 'Save',
+  'editor.saving': 'Saving…',
+  'editor.reload': 'Reload',
+  'editor.reload_confirm': 'Reloading will discard your unsaved changes. Continue?',
+  'editor.saved': 'Saved',
+  'editor.unsaved': 'Unsaved changes',
+  'editor.external_changed': 'File changed on disk; unsaved content is preserved',
+  'editor.external_save_blocked': 'File was changed externally. Reload before saving.',
+  'editor.external_conflict': 'File was changed externally; save stopped to avoid overwriting changes',
+  'editor.binary': 'Binary files cannot be opened in the editor',
+  'editor.encoding': 'This file is not UTF-8 encoded and cannot be opened',
+  'editor.too_large': 'File exceeds the 5 MB editor limit',
+  'editor.outside_workspace': 'File is outside the current workspace',
+  'editor.read_failed': 'Failed to read file',
+  'editor.close_unsaved': 'The file has unsaved changes. Close anyway?',
+} as const;
+
 export const en = {
-  'app.title': 'Coffee CLI',
+  ...editorFallback,
+  'app.title': 'Sinos CLI',
   // Explorer
   'explorer.tab.workspace': 'Workspace',
   'explorer.tab.history': 'Sessions',
@@ -146,7 +169,7 @@ export const en = {
   'task.prompt.body_placeholder': 'Write a prompt, send it to AI…',
   'task.note_placeholder': 'Jot something down, send it all to your agent…',
   // Seeded once for brand-new users as a roomy welcome note (sticky-note view).
-  'task.welcome_note': `Welcome to Coffee CLI ☕
+  'task.welcome_note': `Welcome to Sinos CLI
 
 This is a sticky note — jot anything down, then hit ▶ (top-right) to send the whole thing to your AI. No more cramped little input box.
 

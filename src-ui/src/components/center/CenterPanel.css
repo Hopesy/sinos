@@ -1403,3 +1403,13 @@
   user-select: none;
   z-index: 3;
 }
+.editor-loading-surface {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--text-3);
+  background: var(--bg-terminal);
+  font-size: 12px;
+}

@@ -1,7 +1,8 @@
-import type { I18nKey } from './en';
+import { editorFallback, type I18nKey } from './en';
 
 export const de = {
-  'app.title': 'Coffee CLI',
+  ...editorFallback,
+  'app.title': 'Sinos CLI',
   'explorer.tab.workspace': 'Arbeitsbereich',
   'explorer.tab.history': 'Sitzungen',
   'explorer.workspace.select-dir': 'Klicken zum Arbeitsverzeichnis wählen',
@@ -144,7 +145,7 @@ export const de = {
   'task.prompt.category_placeholder': 'Kategoriename (vorhanden wählen oder neu eingeben)',
   'task.prompt.body_placeholder': 'Prompt schreiben, an KI senden…',
   'task.note_placeholder': 'Schreib etwas auf und sende alles an deinen Agenten…',
-  'task.welcome_note': `Willkommen bei Coffee CLI ☕
+  'task.welcome_note': `Willkommen bei Sinos CLI
 
 Das ist ein Notizzettel: Schreib einfach drauflos und tippe oben rechts auf ▶, um alles an deine KI zu schicken. Schluss mit dem engen kleinen Eingabefeld.
 

@@ -50,7 +50,7 @@ Anthropic 在手册中提供了一张"什么阶段用什么工具"的矩阵。�
 | Launch | **Cowork** + Code | 跑营销流、内容生成、客户反馈分类 |
 | Scale | **Cowork** 多 agent | 把"创始人注意力"换成 agentic workflow |
 
-> Coffee CLI 用户提示：上表里的 **Claude Code** 是命令行工具——在 Coffee CLI 桌面应用里新开一个 Claude Code 标签页就能运行。**Cowork** 和 **Chat** 是网页应用，在 [claude.ai](https://claude.ai) 中使用。
+> Sinos CLI 用户提示：上表里的 **Claude Code** 是命令行工具——在 Sinos CLI 桌面应用里新开一个 Claude Code 标签页就能运行。**Cowork** 和 **Chat** 是网页应用，在 [claude.ai](https://claude.ai) 中使用。
 
 ## 如何使用本课程
 

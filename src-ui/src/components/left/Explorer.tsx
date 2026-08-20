@@ -30,6 +30,7 @@ export interface CtxMenuState {
   relativePath: string;
   isDir?: boolean;
   onRename?: () => void;
+  onOpenEditor?: () => void;
   // ChangesBoard reuses this menu read-only — the audit view shouldn't
   // mutate the agent's just-edited files. Hides cut/copy/paste/rename/delete
   // + the relative-path entry.
@@ -131,12 +132,14 @@ export function ContextMenu({ menu, onClose }: { menu: CtxMenuState; onClose: ()
     }
   };
 
-  // Hand the path off to the OS default opener — Notepad / browser / image
-  // viewer / file manager, whichever the user already configured. We don't
-  // ship in-app previewers (memory: "no in-app file viewers"), so this is
-  // the user's only one-click path from Explorer to the file's content.
+  // Files from the workspace open in the in-app editor; folders and read-only
+  // menus still use the OS default opener.
   const handleOpen = async () => {
     onClose();
+    if (menu.onOpenEditor) {
+      menu.onOpenEditor();
+      return;
+    }
     try {
       await commands.openUrl(menu.absolutePath);
     } catch (e) {
@@ -165,14 +168,14 @@ export function ContextMenu({ menu, onClose }: { menu: CtxMenuState; onClose: ()
 
   return createPortal(
     <div className="ctx-menu" ref={menuRef} style={style}>
-      {/* Primary action: open in OS default — most-used, sits at the top */}
+       {/* Primary action: open in the in-app editor for workspace files. */}
       <button className="ctx-menu-item" onClick={handleOpen}>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M15 3h6v6"/>
           <path d="M10 14 21 3"/>
           <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
         </svg>
-        {t('menu.open')}
+         {menu.onOpenEditor ? t('menu.open_editor') : t('menu.open')}
       </button>
       <div className="ctx-menu-divider" />
       {/* Path copy group */}
@@ -317,7 +320,7 @@ function getFileIcon(ext: string): string {
 
 /** A single expandable directory node for the "My Computer" tab.
  *  Loads children lazily from the backend on first expand. */
-function BrowserDirNode({ name, dirPath, icon, onCtxMenu }: { name: string; dirPath: string; icon?: string; onCtxMenu: (menu: CtxMenuState) => void }) {
+function BrowserDirNode({ name, dirPath, workspaceRoot, icon, onCtxMenu }: { name: string; dirPath: string; workspaceRoot: string; icon?: string; onCtxMenu: (menu: CtxMenuState) => void }) {
   const { state: { iconTheme } } = useAppState();
   const [open, setOpen] = useState(false);
   const [children, setChildren] = useState<DirEntryInfo[] | null>(null);
@@ -448,9 +451,9 @@ function BrowserDirNode({ name, dirPath, icon, onCtxMenu }: { name: string; dirP
             return a.name.localeCompare(b.name);
           }).map(entry => (
             entry.is_dir ? (
-              <BrowserDirNode key={entry.path} name={entry.name} dirPath={entry.path} onCtxMenu={onCtxMenu} />
+              <BrowserDirNode key={entry.path} name={entry.name} dirPath={entry.path} workspaceRoot={workspaceRoot} onCtxMenu={onCtxMenu} />
             ) : (
-              <BrowserFileNode key={entry.path} entry={entry} parentDirPath={dirPath} onCtxMenu={onCtxMenu} />
+              <BrowserFileNode key={entry.path} entry={entry} parentDirPath={dirPath} workspaceRoot={workspaceRoot} onCtxMenu={onCtxMenu} />
             )
           ))}
         </div>
@@ -460,12 +463,13 @@ function BrowserDirNode({ name, dirPath, icon, onCtxMenu }: { name: string; dirP
 }
 
 /** A leaf file node inside the My Computer tree with inline rename support. */
-function BrowserFileNode({ entry, parentDirPath, onCtxMenu }: {
+function BrowserFileNode({ entry, parentDirPath, workspaceRoot, onCtxMenu }: {
   entry: DirEntryInfo;
   parentDirPath: string;
+  workspaceRoot: string;
   onCtxMenu: (menu: CtxMenuState) => void;
 }) {
-  const { state: { iconTheme } } = useAppState();
+  const { state: { iconTheme }, dispatch } = useAppState();
   const fileStats = useFileStats();
   const stats = fileStats?.get(normPath(entry.path));
   const [renaming, setRenaming] = useState(false);
@@ -495,6 +499,7 @@ function BrowserFileNode({ entry, parentDirPath, onCtxMenu }: {
       relativePath: entry.path.replace(/\\/g, '/'),
       isDir: false,
       onRename: () => setRenaming(true),
+      onOpenEditor: () => dispatch({ type: 'OPEN_EDITOR', path: entry.path, workspaceRoot }),
     });
   };
 
@@ -508,6 +513,7 @@ function BrowserFileNode({ entry, parentDirPath, onCtxMenu }: {
       className={`tree-file ${renaming ? 'renaming' : ''}`}
       onContextMenu={handleCtxMenu}
       onMouseDown={onFileMouseDown}
+      onDoubleClick={() => dispatch({ type: 'OPEN_EDITOR', path: entry.path, workspaceRoot })}
     >
       <span className="tree-icon">
         <ThemedIcon
@@ -604,7 +610,9 @@ export function Explorer() {
         const { getVersion } = await import('@tauri-apps/api/app');
         const [local, remote] = await Promise.all([
           getVersion(),
-          fetch('https://coffeecli.com/version.json').then(r => r.json()),
+          fetch('https://api.github.com/repos/Hopesy/sinos/releases/latest', {
+            headers: { Accept: 'application/vnd.github+json' },
+          }).then(r => r.json()),
         ]);
         const isNewer = (r: string, l: string) => {
           const rv = r.split('.').map(Number);
@@ -615,7 +623,8 @@ export function Explorer() {
           }
           return false;
         };
-        if (remote?.version && isNewer(remote.version, local)) setHasUpdate(true);
+        const remoteVersion = String(remote?.tag_name ?? '').replace(/^v/, '');
+        if (remoteVersion && isNewer(remoteVersion, local)) setHasUpdate(true);
       } catch { /* offline or fetch failed — silent */ }
     };
     checkUpdate();
@@ -632,7 +641,7 @@ export function Explorer() {
   const handleSelfUpdate = useCallback(async () => {
     if (installing) return;
     if (!navigator.userAgent.toLowerCase().includes('win')) {
-      commands.openUrl('https://coffeecli.com');
+      commands.openUrl('https://github.com/Hopesy/sinos/releases/latest');
       return;
     }
     setInstalling(true);
@@ -648,7 +657,7 @@ export function Explorer() {
       // Success: installer launched and the app is about to exit — leave the
       // ring as-is until the window goes away.
     } catch {
-      commands.openUrl('https://coffeecli.com');
+      commands.openUrl('https://github.com/Hopesy/sinos/releases/latest');
       setInstalling(false);
       setInstallPhase(null);
       setInstallPct(0);
@@ -740,51 +749,14 @@ export function Explorer() {
       {/* Brand + theme/lang controls */}
       {brandSlot && createPortal(
         <div className="brand">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" className="brand-icon">
-            <defs>
-              <mask id="brandIconMask">
-                {/* Steam (3 wavy lines). The `<animate>` is gated to non-Linux
-                    because WebKit2GTK has no GPU path for SMIL `path d` morphing
-                    inside a `<mask>`: every frame re-evaluates the bezier
-                    geometry, re-rasters the mask, and re-composites the masked
-                    full-viewport path on line ~1108. With the mask applied
-                    over the entire 24×24 brand icon and the indefinite loop
-                    running idle, the kompositor → IPC ack chain pegs Linux
-                    WebKitWebProcess + coffee-cli at ~1.2 cores combined even
-                    when nothing else is on screen (verified live: SSH 5s
-                    increments dropped from 37%/89% to ~0% the moment WebKit
-                    was killed; same coffee-cli on Windows WebView2 / macOS
-                    WKWebView is silent because both have hardware-accelerated
-                    SMIL). Static `d` on Linux means the steam stops drifting
-                    upward but the cup glyph itself is fully intact. */}
-                <path fill="none" stroke="#fff" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 -8c0 2 -2 2 -2 4s2 2 2 4s-2 2 -2 4s2 2 2 4M12 -8c0 2 -2 2 -2 4s2 2 2 4s-2 2 -2 4s2 2 2 4M16 -8c0 2 -2 2 -2 4s2 2 2 4s-2 2 -2 4s2 2 2 4">
-                  {!__IS_LINUX__ && (
-                    <animate attributeName="d" dur="3s" repeatCount="indefinite" values="M8 0c0 2 -2 2 -2 4s2 2 2 4s-2 2 -2 4s2 2 2 4M12 0c0 2 -2 2 -2 4s2 2 2 4s-2 2 -2 4s2 2 2 4M16 0c0 2 -2 2 -2 4s2 2 2 4s-2 2 -2 4s2 2 2 4;M8 -8c0 2 -2 2 -2 4s2 2 2 4s-2 2 -2 4s2 2 2 4M12 -8c0 2 -2 2 -2 4s2 2 2 4s-2 2 -2 4s2 2 2 4M16 -8c0 2 -2 2 -2 4s2 2 2 4s-2 2 -2 4s2 2 2 4"/>
-                  )}
-                </path>
-                <path d="M4 7h16v0h-16v12h16v-32h-16Z">
-                  <animate fill="freeze" attributeName="d" begin="1s" dur="0.6s" to="M4 2h16v5h-16v12h16v-24h-16Z"/>
-                </path>
-              </mask>
-            </defs>
-            <g stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
-              <path fill="currentColor" fillOpacity="0" strokeDasharray="48" d="M17 9v9c0 1.66 -1.34 3 -3 3h-6c-1.66 0 -3 -1.34 -3 -3v-9Z">
-                <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="48;0"/>
-                <animate fill="freeze" attributeName="fill-opacity" begin="1.6s" dur="0.4s" to="1"/>
-              </path>
-              <path fill="none" strokeDasharray="16" strokeDashoffset="16" d="M17 9h3c0.55 0 1 0.45 1 1v3c0 0.55 -0.45 1 -1 1h-3">
-                <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.3s" to="0"/>
-              </path>
-            </g>
-            <path fill="currentColor" d="M0 0h24v24H0z" mask="url(#brandIconMask)"/>
-          </svg>
+          <img src="/sinos-icon.svg" alt="" className="brand-icon" />
           <span>{t('app.title')}</span>
           {hasUpdate && (
             <button
               className={`icon-btn xs update-check-btn update-available${installing ? ' is-installing' : ''}`}
               onClick={handleSelfUpdate}
               disabled={installing}
-              aria-label="Update Coffee CLI"
+              aria-label="Update Sinos CLI"
             >
               {installing ? (
                 <svg
@@ -905,9 +877,9 @@ export function Explorer() {
                 return a.name.localeCompare(b.name);
               }).map(entry => (
                 entry.is_dir ? (
-                  <BrowserDirNode key={entry.path} name={entry.name} dirPath={entry.path} onCtxMenu={handleCtxMenu} />
+                  <BrowserDirNode key={entry.path} name={entry.name} dirPath={entry.path} workspaceRoot={folderPath!} onCtxMenu={handleCtxMenu} />
                 ) : (
-                  <BrowserFileNode key={entry.path} entry={entry} parentDirPath={folderPath!} onCtxMenu={handleCtxMenu} />
+                  <BrowserFileNode key={entry.path} entry={entry} parentDirPath={folderPath!} workspaceRoot={folderPath!} onCtxMenu={handleCtxMenu} />
                 )
               ))}
             </div>

@@ -127,6 +127,18 @@ export interface FontInfo {
   monospace: boolean;
 }
 
+export interface EditorFileSnapshot {
+  content: string;
+  revision: string;
+  line_ending: 'lf' | 'crlf';
+  has_utf8_bom: boolean;
+  size: number;
+}
+
+export type EditorSaveResponse =
+  | { status: 'saved'; revision: string; size: number }
+  | { status: 'conflict'; current_revision: string | null };
+
 // ─── Typed Commands ──────────────────────────────────────────────────────────
 
 export const commands = {
@@ -255,6 +267,23 @@ export const commands = {
   // and for untracked files, which have no git blob to `show`.
   readTextFile: (path: string) =>
     invoke<string | null>('read_text_file', { path }),
+  readEditorFile: (path: string, workspaceRoot: string) =>
+    invoke<EditorFileSnapshot>('read_editor_file', { path, workspaceRoot }),
+  writeEditorFile: (
+    path: string,
+    workspaceRoot: string,
+    content: string,
+    expectedRevision: string,
+    lineEnding: 'lf' | 'crlf',
+    hasUtf8Bom: boolean,
+  ) => invoke<EditorSaveResponse>('write_editor_file', {
+    path,
+    workspaceRoot,
+    content,
+    expectedRevision,
+    lineEnding,
+    hasUtf8Bom,
+  }),
 
   // File system operations
   fsDelete: (path: string) => invoke<void>('fs_delete', { path }),
@@ -278,7 +307,7 @@ export const commands = {
     invoke<void>('open_url', { url }),
 
   // In-app self-update (Windows): download the latest installer from
-  // coffeecli.com/download/<os> with streamed progress, launch it, exit.
+  // the distribution endpoint with streamed progress, launch it, exit.
   // Emits `self-update-progress` while it runs (see onSelfUpdateProgress).
   // Rejects on non-Windows / download failure — caller falls back to openUrl.
   downloadAndInstallUpdate: () =>

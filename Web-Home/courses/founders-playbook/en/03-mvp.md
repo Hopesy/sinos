@@ -95,5 +95,5 @@ If "customers can run it solo" fails, **don't go to Launch**. Keep polishing.
 ## Sources
 
 - Based on Anthropic *The Founder's Playbook*, MVP chapter
-- Coffee CLI users: run Claude Code as a tab in the Coffee CLI desktop app, and put `CLAUDE.md` at your project root
+- Sinos CLI users: run Claude Code as a tab in the Sinos CLI desktop app, and put `CLAUDE.md` at your project root
 - Original PDF: [official download](https://cdn.prod.website-files.com/6889473510b50328dbb70ae6/69fe2a55b93bb0732b1fe33c_The-Founders-Playbook-05062026_v3%20%281%29.pdf)

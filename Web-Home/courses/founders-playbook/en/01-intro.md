@@ -42,7 +42,7 @@ Each stage gets **Goals**, **Exit criteria**, **Common failure modes**, and **AI
 | Launch | **Cowork** + Code | Marketing flows, content, feedback triage |
 | Scale | **Cowork** multi-agent | Replace founder attention with agentic workflow |
 
-> Coffee CLI users: **Claude Code** in the table above is a CLI tool — open it as a new tab in the Coffee CLI desktop app. **Cowork** and **Chat** are web apps, used on [claude.ai](https://claude.ai).
+> Sinos CLI users: **Claude Code** in the table above is a CLI tool — open it as a new tab in the Sinos CLI desktop app. **Cowork** and **Chat** are web apps, used on [claude.ai](https://claude.ai).
 
 ## How to Use This Course
 

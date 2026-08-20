@@ -363,10 +363,27 @@ export function ChangesBoard({ selectedPath, diffMode }: ChangesBoardProps) {
                   };
                   dispatch({ type: 'SET_DIFF_SELECTION', selection });
                 }}
+                onDoubleClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  const workspaceRoot = repoRoot ?? resolveDiffContext(activeSession)?.folderPath ?? '';
+                  if (workspaceRoot) dispatch({ type: 'OPEN_EDITOR', path: entry.path, workspaceRoot });
+                }}
                 onMouseDown={(e) => beginExplorerDrag(entry.path, e)}
                 onContextMenu={(e) => {
                   e.preventDefault();
-                  setCtxMenu({ x: e.clientX, y: e.clientY, absolutePath: entry.path, relativePath: entry.rel, isDir: false, compact: true });
+                  const workspaceRoot = repoRoot ?? resolveDiffContext(activeSession)?.folderPath ?? '';
+                  setCtxMenu({
+                    x: e.clientX,
+                    y: e.clientY,
+                    absolutePath: entry.path,
+                    relativePath: entry.rel,
+                    isDir: false,
+                    compact: true,
+                    onOpenEditor: workspaceRoot
+                      ? () => dispatch({ type: 'OPEN_EDITOR', path: entry.path, workspaceRoot })
+                      : undefined,
+                  });
                 }}
               >
                 <span className={`changes-status changes-status-${entry.status === '?' ? 'untracked' : entry.status.toLowerCase()}`}>

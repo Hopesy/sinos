@@ -1,7 +1,8 @@
-import type { I18nKey } from './en';
+import { editorFallback, type I18nKey } from './en';
 
 export const ko = {
-  'app.title': 'Coffee CLI',
+  ...editorFallback,
+  'app.title': 'Sinos CLI',
   'explorer.tab.workspace': '작업 공간',
   'explorer.tab.history': '세션 기록',
   'explorer.workspace.select-dir': '클릭하여 작업 디렉토리 선택',
@@ -143,7 +144,7 @@ export const ko = {
   'task.prompt.category_placeholder': '분류명 (기존 선택 또는 새로 입력)',
   'task.prompt.body_placeholder': '프롬프트를 적어 AI에게 전송…',
   'task.note_placeholder': '메모를 적어 에이전트로 한 번에 보내기…',
-  'task.welcome_note': `Coffee CLI에 오신 것을 환영합니다 ☕
+  'task.welcome_note': `Sinos CLI에 오신 것을 환영합니다
 
 이건 '메모지'예요. 아무거나 적고 오른쪽 위 ▶ 를 누르면 전체를 AI에게 보냅니다. 더 이상 비좁은 입력창은 필요 없어요.
 

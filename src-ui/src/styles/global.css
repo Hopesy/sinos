@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════
-   Coffee CLI — 3-Panel IDE App Styling
+   Sinos CLI — 3-Panel IDE App Styling
    Theme: Claude (Warm Dark) & Codex (Light Glass)
    ═══════════════════════════════════════════════════════ */
 
@@ -1204,7 +1204,7 @@ html.is-macos .titlebar-left-slot.is-collapsed {
 /* Left/right pane resizers mirror Coffee Note's interaction: the 8px hit
    target stays invisible at rest, reveals a short grip on hover, then grows
    and deepens while dragging. Unlike Coffee Note's blue/yellow split, the
-   grip follows Coffee CLI's active theme accent. */
+   grip follows Sinos CLI's active theme accent. */
 .pane-resizer {
     position: absolute;
     top: 0;
@@ -1347,7 +1347,10 @@ body.resizing-panels .pane-resizer {
 }
 
 .brand-icon {
-    color: var(--accent);
+    width: 18px;
+    height: 18px;
+    display: block;
+    object-fit: contain;
 }
 
 .icon-btn {

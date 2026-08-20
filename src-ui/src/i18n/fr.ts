@@ -1,7 +1,8 @@
-import type { I18nKey } from './en';
+import { editorFallback, type I18nKey } from './en';
 
 export const fr = {
-  'app.title': 'Coffee CLI',
+  ...editorFallback,
+  'app.title': 'Sinos CLI',
   'explorer.tab.workspace': 'Espace de travail',
   'explorer.tab.history': 'Sessions',
   'explorer.workspace.select-dir': 'Cliquer pour choisir le dossier de travail',
@@ -143,7 +144,7 @@ export const fr = {
   'task.prompt.category_placeholder': 'Nom de catégorie (choisir ou saisir)',
   'task.prompt.body_placeholder': 'Écrivez un prompt, envoyez-le à l’IA…',
   'task.note_placeholder': 'Notez quelque chose et envoyez le tout à votre agent…',
-  'task.welcome_note': `Bienvenue sur Coffee CLI ☕
+  'task.welcome_note': `Bienvenue sur Sinos CLI
 
 Ceci est une note autocollante : écrivez ce que vous voulez, puis appuyez sur ▶ (en haut à droite) pour tout envoyer à votre IA. Fini la petite zone de saisie à l'étroit.
 

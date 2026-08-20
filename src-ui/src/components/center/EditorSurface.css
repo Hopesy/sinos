@@ -1,0 +1,152 @@
+.editor-surface {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg-terminal);
+  color: var(--text-1);
+}
+
+.editor-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 34px;
+  padding: 0 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--text-3) 18%, transparent);
+  background: color-mix(in srgb, var(--bg-terminal) 92%, var(--text-1));
+  font-size: 12px;
+}
+
+.editor-file-meta,
+.editor-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.editor-file-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.editor-file-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-3);
+  font-size: 11px;
+}
+
+.editor-dirty-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.editor-notice {
+  max-width: 420px;
+  overflow: hidden;
+  color: var(--text-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-notice-warning {
+  color: #f0b16a;
+}
+
+.editor-save-btn,
+.editor-reload-btn {
+  min-width: 54px;
+  padding: 4px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  border-radius: var(--shape-radius-btn);
+  color: var(--text-1);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  cursor: pointer;
+  font: inherit;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.editor-save-btn:hover:not(:disabled),
+.editor-reload-btn:hover {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.editor-save-btn:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.editor-reload-btn {
+  color: #f0b16a;
+  border-color: color-mix(in srgb, #f0b16a 60%, transparent);
+  background: color-mix(in srgb, #f0b16a 10%, transparent);
+}
+
+.editor-body {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.editor-body .monaco-editor,
+.editor-body .monaco-editor-background,
+.editor-body .monaco-editor .margin {
+  background: var(--bg-terminal) !important;
+}
+
+.editor-overlay,
+.editor-error {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--text-3);
+  background: var(--bg-terminal);
+}
+
+.editor-error {
+  color: #e7a2a2;
+  text-align: center;
+  padding: 24px;
+}
+
+.editor-error button {
+  padding: 5px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  border-radius: var(--shape-radius-btn);
+  color: var(--text-1);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+
+@media (max-width: 760px) {
+  .editor-file-path {
+    display: none;
+  }
+
+  .editor-notice {
+    max-width: 220px;
+  }
+}

@@ -1,16 +1,17 @@
-// Cloudflare Pages Function — coffeecli.com
+// Cloudflare Pages Function — Sinos CLI distribution endpoint.
 // Uses env.ASSETS to serve CF Pages static files directly.
 //
 // Routes:
 //   /download/<platform>   → proxy GitHub Release assets
+//   /version.json?platform=<platform>
+//                          → report a version only when that platform asset exists
 //   /*                     → CF Pages static files (env.ASSETS)
-//                            (includes /version.json — bumped by hand at
-//                             release time; install scripts and the in-app
-//                             update check both read it from here.)
+//                            (release asset discovery is resolved from GitHub
+//                             at request time.)
 
-const REPO = "edison7009/Coffee-CLI"
+const REPO = "Hopesy/sinos"
 
-// Asset filenames follow `Coffee.CLI_<version>_<OS>_<arch>.<ext>`
+// Asset filenames follow `Sinos.CLI_<version>_<OS>_<arch>.<ext>`
 // starting v1.9.2 (CI rename step). Pre-v1.9.2 filenames had no OS
 // label and used inconsistent arch slugs (amd64 / x86_64 / aarch64);
 // we keep the legacy patterns as a fallback so the worker still
@@ -24,7 +25,7 @@ const PLATFORM_PATTERNS = {
     name.endsWith("macOS_arm64.dmg") || (name.includes("aarch64") && name.endsWith(".dmg")),
   "macos-intel": (name) =>
     // Tauri-bundler v2 maps x86_64-apple-darwin to `_x64.dmg`; CI then
-    // renames to `Coffee.CLI_<ver>_macOS_x64.dmg`. Match both so a
+    // renames to `Sinos.CLI_<ver>_macOS_x64.dmg`. Match both so a
     // manually-published Tauri output still resolves.
     name.endsWith("macOS_x64.dmg") || name.endsWith("_x64.dmg"),
   "linux-deb": (name) =>
@@ -60,7 +61,7 @@ async function getLatestAssets(env) {
   let res
   try {
     res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
-      headers: { "User-Agent": "CoffeeCLI-Worker" }
+      headers: { "User-Agent": "SinosCLI-Worker" }
     })
   } catch (e) {
     if (env.KV) {
@@ -110,6 +111,43 @@ export default {
     const url = new URL(request.url)
     const { pathname } = url
 
+    // ── /version.json ────────────────────────────────────────────────────────
+    // Do not publish a tag before its requested installer is actually present.
+    // This closes the release-build window where a new version was visible but
+    // the download endpoint still returned 404 while CI was uploading assets.
+    if (pathname === "/version.json") {
+      const platform = url.searchParams.get("platform") || "windows"
+      if (!PLATFORM_PATTERNS[platform]) {
+        return new Response(JSON.stringify({ version: "" }), {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json; charset=utf-8",
+            "Cache-Control": "no-store",
+          }
+        })
+      }
+
+      let assets
+      try {
+        assets = await getLatestAssets(env)
+      } catch (_error) {
+        return new Response(JSON.stringify({ version: "" }), {
+          status: 502,
+          headers: {
+            "Content-Type": "application/json; charset=utf-8",
+            "Cache-Control": "no-store",
+          }
+        })
+      }
+
+      return new Response(JSON.stringify({ version: assets[platform]?.version || "" }), {
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "Cache-Control": "no-store",
+        }
+      })
+    }
+
     // ── /download/<platform> ─────────────────────────────────────────────────
     const dlMatch = pathname.match(/^\/download\/([a-z0-9-]+)$/)
     if (dlMatch) {
@@ -134,7 +172,7 @@ export default {
       }
 
       const fileRes = await fetch(asset.url, {
-        headers: { "User-Agent": "CoffeeCLI-Worker" }
+        headers: { "User-Agent": "SinosCLI-Worker" }
       })
       return new Response(fileRes.body, {
         status: 200,
@@ -142,7 +180,7 @@ export default {
           "Content-Type": "application/octet-stream",
           "Content-Disposition": `attachment; filename="${asset.name}"`,
           "Content-Length": fileRes.headers.get("Content-Length") || "",
-          "X-Coffee-Version": asset.version,
+          "X-Sinos-Version": asset.version,
           "Cache-Control": "no-store",
         }
       })
@@ -154,9 +192,9 @@ export default {
     // 410 status tells HTTP clients the resource is permanently gone.
     if (pathname.startsWith("/lang-packs/")) {
       return new Response(
-        "Coffee CLI language packs have been retired.\n" +
-        "See Coffee 101 for installation and usage guides:\n" +
-        "  https://coffeecli.com/courses/claude-code\n",
+        "Sinos CLI language packs have been retired.\n" +
+        "See Sinos 101 for installation and usage guides:\n" +
+        "  /courses/claude-code\n",
         {
           status: 410,
           headers: {

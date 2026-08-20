@@ -1,48 +1,28 @@
-# Coffee CLI - Windows Installer / Updater
-# Usage:   irm https://coffeecli.com/install.ps1 | iex
-# License: AGPL-3.0-or-later (https://github.com/edison7009/Coffee-CLI/blob/main/LICENSE)
+# Sinos CLI - Windows Installer / Updater
+# Usage:   irm https://raw.githubusercontent.com/Hopesy/sinos/main/install/install.ps1 | iex
+# License: AGPL-3.0-or-later (https://github.com/Hopesy/sinos/blob/main/LICENSE)
 
 $ErrorActionPreference = "Stop"
 
 Write-Host ""
-Write-Host "  Coffee CLI Installer" -ForegroundColor Cyan
+Write-Host "  Sinos CLI Installer" -ForegroundColor Cyan
 Write-Host "  --------------------" -ForegroundColor DarkGray
 
-# Resolve version and binary via coffeecli.com (CF-hosted, China-accessible).
-# /version.json?platform=windows returns the latest release tag ONLY when
-# the Windows installer has been uploaded to GitHub Releases. If CI is
-# still mid-build, the endpoint returns an empty version, which we treat
-# as "no upgrade available yet" — preventing the earlier race where the
-# version bumped instantly but the .exe took another 15 min to appear.
-# /download/windows is a CF Worker route that proxies the matching GitHub
-# Release asset. This keeps the install path off api.github.com so the
-# script doesn't stall on a blocked or slow GitHub API from mainland
-# networks.
+# Resolve the latest published release and Windows installer from GitHub.
+# The version is accepted only when the matching setup asset exists, so a
+# tag whose CI build is still running does not advertise an unavailable update.
 Write-Host "  Fetching latest version..." -ForegroundColor Gray
-# Try coffeecli.com first (CF-cached, China-accessible). If the Worker
-# is down or rate-limited on its shared GitHub API quota, fall back to
-# api.github.com directly — the user's own IP has its own anonymous
-# quota and won't share that pool, so this is meaningfully more
-# reliable for the single-user case.
 $latestVer = $null
-$fallbackUrl = $null
+$downloadUrl = $null
 try {
-    $latestVer = (Invoke-RestMethod "https://coffeecli.com/version.json?platform=windows" -TimeoutSec 10).version
-} catch {
-    Write-Host "  Trying GitHub directly..." -ForegroundColor Gray
-}
-if (-not $latestVer) {
-    try {
-        $release = Invoke-RestMethod "https://api.github.com/repos/edison7009/Coffee-CLI/releases/latest" `
-            -Headers @{ "User-Agent" = "CoffeeCLI-Install" } -TimeoutSec 15
-        # Match the Windows asset matcher in Web-Home/_worker.js — keep in sync.
-        $winAsset = $release.assets | Where-Object { $_.name -like "*x64-setup.exe" } | Select-Object -First 1
-        if ($winAsset) {
-            $latestVer = $release.tag_name -replace '^v',''
-            $fallbackUrl = $winAsset.browser_download_url
-        }
-    } catch {}
-}
+    $release = Invoke-RestMethod "https://api.github.com/repos/Hopesy/sinos/releases/latest" `
+        -Headers @{ "User-Agent" = "SinosCLI-Install" } -TimeoutSec 15
+    $winAsset = $release.assets | Where-Object { $_.name -like "*Windows_x64-setup.exe" -or $_.name -like "*x64-setup.exe" } | Select-Object -First 1
+    if ($winAsset) {
+        $latestVer = $release.tag_name -replace '^v',''
+        $downloadUrl = $winAsset.browser_download_url
+    }
+} catch {}
 
 # Detect currently installed version from Windows registry
 $installedVer = $null
@@ -53,7 +33,7 @@ $regPaths = @(
 )
 foreach ($path in $regPaths) {
     $entry = Get-ItemProperty $path -ErrorAction SilentlyContinue |
-             Where-Object { $_.DisplayName -like "Coffee CLI*" } |
+             Where-Object { $_.DisplayName -like "Sinos CLI*" -or $_.DisplayName -like "Coffee CLI*" } |
              Select-Object -First 1
     if ($entry) {
         $installedVer = $entry.DisplayVersion
@@ -68,7 +48,7 @@ foreach ($path in $regPaths) {
 # the moment the script returns).
 if (-not $latestVer) {
     Write-Host ""
-    Write-Host "  A new version of Coffee CLI was just released." -ForegroundColor Yellow
+    Write-Host "  A new version of Sinos CLI was just released." -ForegroundColor Yellow
     Write-Host "  The server is currently redeploying." -ForegroundColor Yellow
     Write-Host "  Please try again in about 10 minutes." -ForegroundColor Yellow
     Write-Host ""
@@ -90,7 +70,7 @@ if ($installedVer) {
     Write-Host "  Installed: v$installedVer" -ForegroundColor Gray
     if ($installedVer -eq $latestVer) {
         Write-Host ""
-        Write-Host "  Coffee CLI is already up to date (v$installedVer)." -ForegroundColor Green
+        Write-Host "  Sinos CLI is already up to date (v$installedVer)." -ForegroundColor Green
         Write-Host ""
         exit 0
     }
@@ -99,13 +79,12 @@ if ($installedVer) {
     Write-Host "  Not installed - performing fresh install..." -ForegroundColor Gray
 }
 
-$url = if ($fallbackUrl) { $fallbackUrl } else { "https://coffeecli.com/download/windows" }
-$out = "$env:TEMP\coffee-cli-setup.exe"
+$url = $downloadUrl
+$out = "$env:TEMP\sinos-cli-setup.exe"
 
 Write-Host "  Downloading..." -ForegroundColor Gray
-# Wrap in try/catch so a transient 404 (CI edge case: version.json says
-# ready but GitHub asset not yet consistent) surfaces as a friendly
-# message instead of a raw WebException stack.
+# Wrap in try/catch so a transient GitHub/API or asset-upload failure surfaces
+# as a friendly message instead of a raw WebException stack.
 try {
     Invoke-WebRequest $url -OutFile $out -UseBasicParsing
 } catch {
@@ -121,6 +100,6 @@ Write-Host "  Installing..." -ForegroundColor Gray
 Start-Process $out -Wait
 
 Write-Host ""
-Write-Host "  Done! Coffee CLI v$latestVer installed." -ForegroundColor Green
+Write-Host "  Done! Sinos CLI v$latestVer installed." -ForegroundColor Green
 Write-Host "  Launch it from the Start Menu." -ForegroundColor Gray
 Write-Host ""

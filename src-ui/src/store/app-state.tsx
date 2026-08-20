@@ -1,4 +1,4 @@
-// Coffee CLI — Global App State (React Context)
+// Sinos CLI — Global App State (React Context)
 
 import { createContext, useContext, useReducer } from 'react';
 import type { ReactNode } from 'react';
@@ -43,7 +43,7 @@ export type ThemeShape =
 // Icon theme: visual style for file/folder icons in the explorer.
 // 8 themes, each with genuinely distinct folder silhouette + file icon style.
 // Fetched upstream (6): material, vscode-icons, catppuccin-mocha, devicon, fluent, symbols
-// Self-authored (2): outline (line-frame), coffee (Coffee CLI brand)
+// Self-authored (2): outline (line-frame), coffee (legacy upstream icon theme)
 export type IconTheme =
   | 'outline' | 'material' | 'vscode-icons' | 'catppuccin-mocha'
   | 'devicon' | 'fluent' | 'symbols' | 'coffee';
@@ -263,6 +263,12 @@ export interface AppState {
   /// switch back to, without diffMode flipping (mode = which surface the diff
   /// renders on; this = which tab is focused right now).
   diffTabActive: boolean;
+
+  // Monaco owns the actual text models. Global state only tracks editor tab
+  // identity and the indicators needed by the central tab strip.
+  editorTabs: EditorTab[];
+  activeEditorId: string | null;
+  editorTabActive: boolean;
 }
 
 /// Snapshot of the file the user clicked in ChangesBoard, plus the folderPath
@@ -277,6 +283,19 @@ export interface DiffSelection {
   commitHash?: string;
   added?: number;
   deleted?: number;
+}
+
+export interface EditorTab {
+  id: string;
+  path: string;
+  workspaceRoot: string;
+  dirty: boolean;
+  externalChanged: boolean;
+}
+
+function editorPathKey(path: string): string {
+  const normalized = path.replace(/\\/g, '/').replace(/\/+$/, '');
+  return /^[A-Za-z]:/.test(normalized) ? normalized.toLowerCase() : normalized;
 }
 
 // ─── Tab tool predicates ────────────────────────────────────────────────────
@@ -362,7 +381,12 @@ type Action =
   | { type: 'SET_DIFF_SELECTION'; selection: DiffSelection }
   | { type: 'CLEAR_DIFF' }
   | { type: 'SET_DIFF_MODE'; mode: 'overlay' | 'tab' }
-  | { type: 'SET_DIFF_TAB_ACTIVE'; active: boolean };
+  | { type: 'SET_DIFF_TAB_ACTIVE'; active: boolean }
+  | { type: 'OPEN_EDITOR'; path: string; workspaceRoot: string }
+  | { type: 'SET_EDITOR_ACTIVE'; id: string }
+  | { type: 'SET_EDITOR_DIRTY'; id: string; dirty: boolean }
+  | { type: 'SET_EDITOR_EXTERNAL_CHANGED'; id: string; externalChanged: boolean }
+  | { type: 'CLOSE_EDITOR'; id: string };
 
 // ─── Reducer ─────────────────────────────────────────────────────────────────
 
@@ -447,7 +471,7 @@ function reducer(state: AppState, action: Action): AppState {
       // Activating a terminal tab blurs the diff tab (they're peer tabs in
       // the strip; only one is focused at a time). diffMode is untouched —
       // the diff still renders in its chosen surface, just not focused.
-      return { ...state, activeTerminalId: action.id, diffTabActive: false };
+      return { ...state, activeTerminalId: action.id, diffTabActive: false, editorTabActive: false };
     case 'SET_TERMINAL_TOOL':
       return {
         ...state,
@@ -618,6 +642,7 @@ function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         diffSelection: action.selection,
+        editorTabActive: false,
         diffTabActive: state.diffMode === 'tab' ? true : state.diffTabActive,
       };
     case 'CLEAR_DIFF':
@@ -632,7 +657,54 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, diffMode: action.mode, diffTabActive: action.mode === 'tab' };
     }
     case 'SET_DIFF_TAB_ACTIVE':
-      return { ...state, diffTabActive: action.active };
+      return { ...state, diffTabActive: action.active, editorTabActive: action.active ? false : state.editorTabActive };
+    case 'OPEN_EDITOR': {
+      const key = editorPathKey(action.path);
+      const existing = state.editorTabs.find(tab => editorPathKey(tab.path) === key);
+      if (existing) {
+        return { ...state, activeEditorId: existing.id, editorTabActive: true, diffTabActive: false };
+      }
+      const tab: EditorTab = {
+        id: crypto.randomUUID(),
+        path: action.path,
+        workspaceRoot: action.workspaceRoot,
+        dirty: false,
+        externalChanged: false,
+      };
+      return {
+        ...state,
+        editorTabs: [...state.editorTabs, tab],
+        activeEditorId: tab.id,
+        editorTabActive: true,
+        diffTabActive: false,
+      };
+    }
+    case 'SET_EDITOR_ACTIVE':
+      if (!state.editorTabs.some(tab => tab.id === action.id)) return state;
+      return { ...state, activeEditorId: action.id, editorTabActive: true, diffTabActive: false };
+    case 'SET_EDITOR_DIRTY':
+      return {
+        ...state,
+        editorTabs: state.editorTabs.map(tab => tab.id === action.id ? { ...tab, dirty: action.dirty } : tab),
+      };
+    case 'SET_EDITOR_EXTERNAL_CHANGED':
+      return {
+        ...state,
+        editorTabs: state.editorTabs.map(tab => tab.id === action.id ? { ...tab, externalChanged: action.externalChanged } : tab),
+      };
+    case 'CLOSE_EDITOR': {
+      const index = state.editorTabs.findIndex(tab => tab.id === action.id);
+      if (index < 0) return state;
+      const tabs = state.editorTabs.filter(tab => tab.id !== action.id);
+      const closingActive = state.activeEditorId === action.id;
+      const nextActive = closingActive ? (tabs[index] ?? tabs[index - 1] ?? null) : state.editorTabs.find(tab => tab.id === state.activeEditorId) ?? null;
+      return {
+        ...state,
+        editorTabs: tabs,
+        activeEditorId: nextActive?.id ?? null,
+        editorTabActive: closingActive ? nextActive !== null : state.editorTabActive,
+      };
+    }
     default:
       return state;
   }
@@ -833,6 +905,9 @@ function getInitialState(): AppState {
     diffSelection: null,
     diffMode,
     diffTabActive: false,
+    editorTabs: [],
+    activeEditorId: null,
+    editorTabActive: false,
   };
 }
 

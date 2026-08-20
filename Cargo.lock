@@ -658,7 +658,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "coffee-cli"
+name = "sinos-cli"
 version = "3.4.7"
 dependencies = [
  "anyhow",

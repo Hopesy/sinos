@@ -1,7 +1,8 @@
-import type { I18nKey } from './en';
+import { editorFallback, type I18nKey } from './en';
 
 export const vi = {
-  'app.title': 'Coffee CLI',
+  ...editorFallback,
+  'app.title': 'Sinos CLI',
   // Explorer
   'explorer.tab.workspace': 'Không gian làm việc',
   'explorer.tab.history': 'Phiên',
@@ -146,7 +147,7 @@ export const vi = {
   'task.prompt.category_placeholder': 'Tên phân loại (chọn sẵn hoặc gõ mới)',
   'task.prompt.body_placeholder': 'Viết prompt, gửi cho AI…',
   'task.note_placeholder': 'Ghi vài dòng rồi gửi cả đoạn cho agent…',
-  'task.welcome_note': `Chào mừng đến với Coffee CLI ☕
+  'task.welcome_note': `Chào mừng đến với Sinos CLI
 
 Đây là một tờ ghi chú dán: viết bất cứ điều gì, rồi bấm ▶ (góc trên bên phải) để gửi cả đoạn cho AI của bạn. Không còn ô nhập liệu chật chội nữa.
 
