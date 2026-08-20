@@ -1,54 +1,54 @@
 <details open>
 <summary><b>🇨🇳 简体中文</b></summary>
 
-### Sinos CLI v3.4.7
+### Sinos CLI v3.4.8
 
-- **左右侧栏现在可以自由拖拽调整宽度。** 分隔线悬停即显示左右拖动指针，并以当前主题色呈现带动画的手柄；宽度会自动保存，隐藏或重新展开侧栏时也会正确维护中间工作区，不会发生跳变。
-- **泡泡对话的链接与排版进一步统一。** 点击链接会直接调用用户的系统浏览器；标题、强调文字与表头不再加粗，所有正文保持一致字号和字重。
-- **窄窗口下的顶部与侧栏信息更加稳定。** 设置按钮新增完整多语言文字，并遵循“图标 + 文字 / 仅图标 / 隐藏”显示模式（设置入口始终保留）；左右顶部标签和会话卡片元信息宽度不足时直接裁切、不再换行。Gambit 也会为远程会话显示正确的主机目标。
+- **Coffee CLI 已正式更名为 Sinos CLI。** 应用名称、安装包、仓库地址、桌面标识和全套图标均已统一更新，同时保留旧配置目录与 Hook 标识的兼容读取，现有用户升级后无需迁移配置。
+- **文件浏览器现在集成 Monaco Editor。** 双击或通过右键菜单即可打开文件，支持多标签、常见语言高亮及 `Ctrl+S` / `Cmd+S` 保存；UTF-8 BOM 和换行格式会被保留，并通过文件大小、二进制、工作区边界和外部修改检查保护写入安全。
+- **GitHub Release 改为多平台资产就绪后再提供更新。** Windows、macOS 和 Linux 安装包采用统一的 Sinos 命名；版本接口只会在对应平台资产实际上传后返回新版，避免 CI 编译期间出现可见版本已更新但安装包仍为 404 的时间差。
 
 </details>
 
 <details>
 <summary><b>🇬🇧 English</b></summary>
 
-### Sinos CLI v3.4.7
+### Sinos CLI v3.4.8
 
-- **The left and right sidebars are now freely resizable.** Hovering a divider immediately shows the horizontal-resize cursor and an animated handle in the active theme color. Widths persist across sessions, while hiding and reopening panels preserves the center workspace without jumps.
-- **Bubble Conversation links and typography are now fully consistent.** Links open directly in the user's system browser, while headings, emphasized text and table headers use the same regular weight and size as the rest of the message.
-- **Narrow-window chrome now stays stable and readable.** Settings gains a fully localized title and follows the Icon + text / Icon only / Hidden display modes while always keeping its gear reachable. Side-panel tabs and session metadata clip cleanly instead of wrapping, and Gambit now shows the correct host target for remote sessions.
+- **Coffee CLI is now Sinos CLI.** The application name, installer packages, repository links, desktop identity and complete icon set have been updated consistently, while legacy configuration directories and hook identifiers remain readable so existing users can upgrade without migrating settings.
+- **The file explorer now opens files in Monaco Editor.** Double-click or use the context menu to edit with multiple tabs, language-aware highlighting and `Ctrl+S` / `Cmd+S` saving. UTF-8 BOM and line endings are preserved, while file-size, binary, workspace-boundary and external-change checks protect writes.
+- **GitHub releases now expose updates only after platform assets are ready.** Windows, macOS and Linux packages use consistent Sinos names, and the version endpoint reports a release only when the requested platform asset has actually been uploaded, eliminating the CI window where an update was visible but its download still returned 404.
 
 </details>
 
 <details>
 <summary><b>🇹🇼 繁體中文</b></summary>
 
-### Sinos CLI v3.4.7
+### Sinos CLI v3.4.8
 
-- **左右側欄現在可以自由拖曳調整寬度。** 游標懸停在分隔線上時會立即顯示左右調整指標，並以目前主題色呈現動畫手柄；寬度會自動儲存，隱藏或重新展開側欄時也能正確維持中央工作區，不會跳動。
-- **泡泡對話的連結與排版進一步統一。** 點擊連結會直接呼叫使用者的系統瀏覽器；標題、強調文字與表頭不再加粗，所有正文保持一致字級與字重。
-- **窄視窗下的頂部與側欄資訊更加穩定。** 設定按鈕新增完整多語言文字，並遵循「圖示 + 文字／僅圖示／隱藏」顯示模式（設定入口始終保留）；左右頂部標籤與會話卡片資訊在寬度不足時直接裁切、不再換行。Gambit 也會為遠端會話顯示正確的主機目標。
+- **Coffee CLI 已正式更名為 Sinos CLI。** 應用程式名稱、安裝套件、儲存庫連結、桌面識別與整套圖示均已一致更新，同時保留舊設定目錄與 Hook 識別的相容讀取，現有使用者升級後無須搬移設定。
+- **檔案瀏覽器現在整合 Monaco Editor。** 雙擊或使用右鍵選單即可開啟檔案，支援多分頁、常見語言醒目提示及 `Ctrl+S` / `Cmd+S` 儲存；UTF-8 BOM 與換行格式會被保留，並透過檔案大小、二進位、工作區邊界及外部修改檢查保護寫入安全。
+- **GitHub Release 改為多平台資產就緒後才提供更新。** Windows、macOS 與 Linux 安裝套件採用一致的 Sinos 命名；版本介面只會在對應平台資產實際上傳後回傳新版，避免 CI 編譯期間出現版本已更新但下載仍為 404 的時間差。
 
 </details>
 
 <details>
 <summary><b>🇯🇵 日本語</b></summary>
 
-### Sinos CLI v3.4.7
+### Sinos CLI v3.4.8
 
-- **左右のサイドバーを自由にドラッグして幅調整できるようになりました。** 境界線にホバーするとすぐに左右リサイズカーソルとテーマカラーのアニメーションハンドルが表示されます。幅は保存され、パネルを非表示・再表示しても中央ワークスペースを保ったまま滑らかに復元されます。
-- **バブル会話のリンクと文字組みをさらに統一しました。** リンクはユーザーのシステムブラウザで直接開き、見出し・強調文字・表ヘッダーも本文と同じ通常のサイズとウェイトで表示されます。
-- **狭いウィンドウでもトップバーとサイドバーが安定します。** 設定ボタンに完全ローカライズされたラベルを追加し、「アイコン + 文字／アイコンのみ／非表示」に追従しながら歯車は常に残します。左右のタブとセッション情報は折り返さずに切り取られ、Gambit はリモートセッションの正しいホストを表示します。
+- **Coffee CLI は Sinos CLI に正式に改名されました。** アプリ名、インストーラー、リポジトリリンク、デスクトップ識別子、アイコン一式を統一して更新しました。従来の設定ディレクトリと Hook 識別子は互換性のため引き続き読み込まれるため、既存ユーザーの設定移行は不要です。
+- **ファイルエクスプローラーに Monaco Editor を統合しました。** ダブルクリックまたはコンテキストメニューからファイルを開き、複数タブ、主要言語のハイライト、`Ctrl+S` / `Cmd+S` 保存を利用できます。UTF-8 BOM と改行形式を保持し、サイズ、バイナリ、ワークスペース境界、外部変更の検査で安全に保存します。
+- **GitHub Release は各プラットフォームの成果物が揃ってから更新を公開します。** Windows、macOS、Linux のパッケージ名を Sinos 形式に統一し、対象プラットフォームの成果物が実際にアップロードされた場合のみバージョン API が新版を返すため、CI 実行中の 404 を防ぎます。
 
 </details>
 
 <details>
 <summary><b>🇰🇷 한국어</b></summary>
 
-### Sinos CLI v3.4.7
+### Sinos CLI v3.4.8
 
-- **왼쪽과 오른쪽 사이드바의 너비를 자유롭게 드래그해 조절할 수 있습니다.** 구분선에 마우스를 올리면 즉시 좌우 크기 조절 커서와 현재 테마 색상의 애니메이션 핸들이 표시됩니다. 너비는 자동으로 저장되며 패널을 숨겼다가 다시 열어도 중앙 작업 공간을 유지하면서 자연스럽게 복원됩니다.
-- **버블 대화의 링크와 타이포그래피를 완전히 통일했습니다.** 링크는 사용자의 시스템 브라우저에서 바로 열리고, 제목·강조 텍스트·표 머리글도 나머지 본문과 같은 보통 크기와 굵기로 표시됩니다.
-- **좁은 창에서도 상단 바와 사이드바 정보가 안정적으로 유지됩니다.** 설정 버튼에 완전한 다국어 라벨을 추가하고 “아이콘 + 텍스트 / 아이콘만 / 숨김” 모드를 따르되 설정 아이콘은 항상 남깁니다. 좌우 탭과 세션 정보는 줄바꿈 대신 깔끔하게 잘리며, Gambit은 원격 세션의 올바른 호스트 대상을 표시합니다.
+- **Coffee CLI가 Sinos CLI로 공식 변경되었습니다.** 앱 이름, 설치 패키지, 저장소 링크, 데스크톱 식별자와 전체 아이콘 세트를 일관되게 갱신했습니다. 기존 설정 디렉터리와 Hook 식별자는 호환성을 위해 계속 읽으므로 기존 사용자는 설정을 이전할 필요가 없습니다.
+- **파일 탐색기에 Monaco Editor가 통합되었습니다.** 더블 클릭하거나 컨텍스트 메뉴에서 파일을 열어 다중 탭, 주요 언어 강조 표시, `Ctrl+S` / `Cmd+S` 저장을 사용할 수 있습니다. UTF-8 BOM과 줄바꿈 형식을 유지하며 파일 크기, 바이너리, 작업 공간 경계, 외부 변경 검사를 통해 안전하게 저장합니다.
+- **GitHub Release는 플랫폼별 설치 파일이 준비된 뒤에만 업데이트를 제공합니다.** Windows, macOS, Linux 패키지 이름을 Sinos 형식으로 통일했으며, 요청한 플랫폼의 파일이 실제로 업로드된 경우에만 버전 API가 새 버전을 반환하므로 CI 빌드 중 다운로드가 404가 되는 시간 차를 없앴습니다.
 
 </details>
